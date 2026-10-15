@@ -1,0 +1,200 @@
+<!doctype html>
+<html class="figma-dark"><head><meta charset="utf-8"><title>Editor theme fixture</title>
+<style>
+* { box-sizing: border-box; }
+body { --color-bg:#2c2c2c; --color-text:#eee; --color-border:#444; margin:0; font:13px Arial,sans-serif; color:var(--color-text); background:#1e1e1e; }
+button,input { font:inherit; color:inherit; border:1px solid var(--color-border); background:var(--color-bg); border-radius:3px; }
+button { padding:8px 10px; cursor:default; }
+button:hover { background:#444; }
+input { width:100%; padding:8px; }
+aside { position:absolute; top:0; bottom:0; width:248px; background:var(--color-bg); padding:16px; }
+#left { left:0; border-right:1px solid var(--color-border); }
+#right { right:0; border-left:1px solid var(--color-border); }
+h2 { font-size:14px; margin:8px 0 18px; }
+h3 { font-size:12px; margin:24px 0 12px; }
+.tabs { display:flex; gap:4px; margin:16px 0; }
+.tabs button { border:0; }
+.row { display:flex; align-items:center; gap:8px; margin:8px 0; }
+.row input { min-width:0; }
+.layer { border:0; width:100%; text-align:left; margin:3px 0; }
+.layer[aria-pressed=true] { background:#315a7e; }
+.section { border-top:1px solid var(--color-border); margin-top:20px; padding-top:4px; }
+#stage { position:absolute; inset:0 248px; display:grid; place-items:center; }
+#artwork { width:360px; padding:28px; border-radius:2px; background:#fff; color:#172b4d; font:18px Georgia,serif; box-shadow:0 8px 30px #0004; }
+#artwork h1 { font:600 30px Georgia,serif; margin:20px 0 8px; }
+#artwork p { line-height:1.6; }
+canvas { width:100%; height:150px; border-radius:2px; }
+#toolbar { position:absolute; bottom:24px; left:50%; transform:translateX(-50%); display:flex; gap:4px; padding:6px; background:var(--color-bg); border-radius:4px; }
+#toolbar button { border:0; width:38px; height:38px; padding:6px; font-size:20px; }
+.muted { opacity:.65; }
+.swatch { width:22px; height:22px; border-radius:4px; background:#ffcc00; }
+[data-preferred-theme=dark][data-editor-theme=design] { --color-bg-menu-selected-hover:#0d99ff; --color-bg-toolbar-selected:#0d99ff; }
+/* Match the shipped Figma hierarchy, including nested painted controls. */
+.field { display:flex; align-items:center; flex:1; min-width:0; height:28px; }
+.scrubbable_control--containerBordered--fixture,
+.combo_box--container--fixture,
+.raw_components--multiValueInput--fixture { background:#202020; border:1px solid #202020; border-radius:5px; }
+.combo_box--container--fixture { position:relative; }
+.combo_box--scrubbableControl--fixture { position:absolute; top:3px; width:100%; }
+.scrubbable_control--container--fixture { display:flex; align-items:center; min-width:0; flex:1; }
+.raw_components--input--fixture { width:100%; min-width:0; padding:0 4px; height:24px; background:transparent; border:1px solid transparent; }
+.dimension_input--inputAndHug--fixture { display:flex; align-items:center; justify-content:space-between; width:100%; }
+.dimension_input--dimensionInputContainer--fixture { flex:1; min-width:0; }
+.dimension_input--hugFillText--fixture { margin:0 8px 0 4px; }
+.select--container--fixture { display:flex; position:relative; width:100%; align-items:center; }
+.select--hiddenInput--fixture { position:absolute; width:1px; height:1px; overflow:hidden; opacity:0; }
+.select--input--fixture { display:flex; align-items:center; width:100%; padding:0 4px; height:28px; background:#202020; border:1px solid #444; }
+/* Shipped FPL input feature variants and SegmentedControl markup. */
+.xkjjsvc,.xkjjsvi { background:#202020; height:24px; border-radius:5px; outline:1px solid #444; }
+.xkjjsvd,.xkjjsvj { display:flex; align-items:center; flex:1; min-width:0; }
+.xkjjsve,.xkjjsvk { width:100%; min-width:0; border:0; padding:0 8px; }
+.xkjjsvd > .xkjjsve,.xkjjsvj > .xkjjsvk { height:100%; background:none; }
+.qw5m0k1 { display:grid; place-items:center; width:24px; height:100%; flex-shrink:0; }
+._12v7fda4 { border:0; padding:0; margin:0; }
+._12v7fda4 [data-radio-options-root] { display:flex; background:#202020; border-radius:5px; padding:0; }
+._12v7fda6 { position:relative; flex:1; min-width:0; }
+._12v7fda6 > input { position:absolute; inset:0; width:100%; height:100%; opacity:0; margin:0; }
+._12v7fda7 { height:24px; display:flex; align-items:center; justify-content:center; border-radius:5px; }
+._12v7fda6 > input:checked + ._12v7fda7 { background:#333; box-shadow:inset 0 0 0 1px #777; }
+._12v7fda6 > input:focus-visible + ._12v7fda7 { outline:1px solid blue; }
+.color_controls--hex--fixture { flex:1; min-width:0; }
+.color-controls-opacity { display:flex; width:65px; align-items:center; }
+.pages_panel_row--pageRowContainer--fixture { margin:3px 0; }
+.legacy_pages_panel--pageRow--fixture { width:100%; text-align:left; border:0; padding:8px; }
+.legacy_pages_panel--pageRowActive--fixture { background:#202020; border-radius:5px; }
+.menu-position { position:absolute; top:20px; left:264px; width:180px; }
+.base--dropdown--fixture { padding:8px; background:var(--color-bg-menu,#333); border-radius:8px; box-shadow:0 5px 15px #0005; }
+.base--_optionBase--fixture { display:flex; gap:8px; align-items:center; height:28px; padding:0 8px; border-radius:5px; }
+.multilevel--optionActive--fixture { background:var(--color-bg-menu-selected,#9141ac); color:var(--color-text-menu-onselected,white); }
+.multilevel--optionActive--fixture > * { color:inherit; }
+.multilevel--iconContainer--fixture { display:grid; place-items:center; }
+#tool-menu-shell { position:absolute; bottom:85px; left:calc(50% - 130px); width:150px; }
+#tool-menu { padding:0; }
+.sidebar_row--sidebarRowContainer--fixture { display:flex; width:100%; color:inherit; text-decoration:none; }
+.sidebar_row--sidebarRow--fixture { display:flex; align-items:center; gap:12px; height:28px; width:100%; margin:2px 8px; padding:0 4px; border-radius:5px; }
+.sidebar_row--sidebarRowSelected--fixture { background:var(--color-bg-selected); }
+/* Popups own their surfaces; their semantic/positioning wrappers do not. */
+#share-dialog { position:fixed; inset:0; pointer-events:none; background:transparent; }
+#agent-banner { margin-top:12px; padding:12px; border-radius:6px; background:var(--color-bg-info,#394360); }
+#share-card { position:absolute; left:470px; top:20px; width:340px; padding:16px; background:var(--color-bg-menu,#333); border-radius:12px; pointer-events:auto; }
+#invite-wrapper { display:flex; align-items:center; height:32px; border:1px solid #777; border-radius:5px; }
+#invite-wrapper:focus-within { outline:1px solid var(--color-border-selected,#0d99ff); }
+#invite-wrapper input { background:transparent; border:0; outline:none; min-width:0; padding:0 8px; height:100%; border-radius:0; }
+#native-menu { position:absolute; left:264px; top:140px; width:180px; background:var(--color-bg-menu,#333); border-radius:8px; padding:8px; box-shadow:0 5px 15px #0005; }
+#native-menu ul { padding:0; margin:0; list-style:none; background:transparent; }
+#native-menu li { height:24px; background:transparent; }
+#native-menu li > div { padding:0 8px; border-radius:5px; height:24px; line-height:24px; }
+#native-menu [data-fpl-selected] > div { background:var(--color-bg-brand,#0d99ff); color:var(--color-text-onbrand,white); }
+#library-search-popup { position:fixed; bottom:85px; left:650px; width:230px; padding:12px; border-radius:8px; background:var(--color-bg-menu,#333); }
+#library-search { height:32px; border-radius:5px; display:flex; align-items:center; }
+#library-search input { background:transparent; border:none; outline:none; height:100%; padding:0 8px; }
+#multiplayer { display:flex; align-items:center; height:24px; border-radius:50px; background:var(--color-bg); padding:0 4px; }
+#multiplayer button { height:24px; width:24px; padding:0; border:0; background:transparent; border-radius:50%; }
+#multiplayer-tooltip { background:#333; color:white; border-radius:4px; box-shadow:none; padding:4px 8px; }
+#layers-toggle { height:24px; display:flex; align-items:center; background:transparent; }
+.variable-row { height:24px; display:flex; align-items:center; background:var(--color-bg-selected,#555); }
+.variable-row > button { background:transparent; border:0; height:24px; padding:0 8px; border-radius:0; width:100%; text-align:left; }
+#variable-color { height:24px; background:var(--color-bg-secondary,#202020); border:0; border-radius:5px; padding-left:0; }
+#right [data-testid="multiplayer-toolbar-share-button"] { background:var(--color-bg-brand,#0d99ff); color:white; }
+#right [data-testid="multiplayer-toolbar-share-button"]:hover { background:#555; }
+#more { background:var(--color-bg-secondary); border:1px solid var(--color-border); }
+#home-fixture { display:none; position:absolute; inset:0; background:var(--color-bg); }
+#home-fixture nav { position:absolute; inset:0 auto 0 0; width:248px; padding:20px 0; background:#181818; }
+#home-fixture main { margin-left:248px; padding:32px; }
+.file-cards { display:flex; gap:20px; margin-top:30px; }
+.file-card { width:225px; border:1px solid var(--color-border); border-radius:12px; overflow:hidden; }
+.file-card-preview { height:140px; background:linear-gradient(135deg,#9141ac,#1c71d8); }
+.file-card p { margin:16px; }
+</style></head><body>
+<aside id="left" data-testid="left-panel" class="left_panel_container--panel--fixture">
+  <h2>Project Metro</h2><p class="muted">Team project</p>
+  <div class="tabs"><button role="tab" aria-selected="true">File</button><button role="tab">Assets</button></div>
+  <input placeholder="Search layers" aria-label="Search layers">
+  <h3>Pages</h3><button class="layer">Workbench</button><button class="layer">Components</button>
+  <div class="pages_panel_row--pageRowContainer--fixture"><button id="selected-page" class="legacy_pages_panel--pageRow--fixture legacy_pages_panel--pageRowActive--fixture" aria-current="page"><div><span class="legacy_pages_panel--renameableNodeText--fixture">Workbench 2</span></div></button></div>
+  <div class="section"><div id="layers-toggle" role="button">Layers</div><button class="layer">▾ &nbsp; Welcome</button><button class="layer">　◈ &nbsp; Illustration</button><button class="layer">　T &nbsp; Heading</button><button class="layer">　T &nbsp; Description</button></div><div class="section"><h3>Variables</h3><div id="collection-row" class="variable-row"><button aria-pressed="true">colors</button></div><div id="variable-group" class="variable-row" style="margin-top:8px"><button aria-selected="true">All</button></div><div class="row"><span class="swatch"></span><input id="variable-color" class="variables_modal_value_input--colorInput--fixture" value="F4ABBA"></div></div>
+</aside>
+<main id="stage"><article id="artwork"><canvas id="canvas" width="320" height="150"></canvas><h1>Made for ideas.</h1><p>A little room to think, sketch,<br>and make something your own.</p><span style="display:inline-block;background:#ffcc00;color:#172b4d;padding:10px 18px;border-radius:24px;font:14px Arial">Start creating →</span></article></main>
+<aside id="right" data-testid="properties-panel" class="properties_panel--panelContainer--fixture">
+  <div class="row"><button id="share-button" data-testid="multiplayer-toolbar-share-button" style="margin-left:auto">Share</button></div>
+  <div id="multiplayer" class="multiplayer_view--selfAvatarWithToolsContainer--fixture"><button aria-label="Multiplayer tools">●</button><span>⌄</span></div><div class="tabs"><button role="tab" aria-selected="true">Design</button><button role="tab">Prototype</button></div>
+  <div class="section"><h3>Position</h3><div class="row"><div id="x-field" data-fpl-component="" class="xkjjsvd xkjjsvc xkjjsva"><span data-fpl-component="" class="qw5m0k1">X</span><input data-fpl-component="" class="xkjjsve xkjjsvc xkjjsva" aria-label="X position" value="120"></div><div id="y-field" data-fpl-component="" class="xkjjsvj xkjjsvi xkjjsva"><span data-fpl-component="" class="qw5m0k1">Y</span><input data-fpl-component="" class="xkjjsvk xkjjsvi xkjjsva" aria-label="Y position" value="80"></div></div><div class="row"><label id="rotation-field" class="field scrubbable_control--container--fixture"><span>∠</span><input class="raw_components--input--fixture" aria-label="Rotation" value="0°"></label><button id="rotation-button" style="background:var(--color-bg-secondary);border:0">↔</button><button style="background:var(--color-bg-secondary);border:0">↦</button></div></div>
+  <div class="section"><h3>Layout</h3><p class="muted">Flow</p><div id="flow-line" style="display:flex;align-items:center;gap:8px"><fieldset id="flow" style="flex:1;min-width:0" class="_12v7fda4 _12v7fdaa" data-fpl-component=""><div data-radio-options-root>
+    <div class="_12v7fda6" data-fpl-component="primitive"><input type="radio" name="flow" value="NONE" aria-label="Freeform"><span class="_12v7fda7" aria-hidden="true">⌘</span></div>
+    <div class="_12v7fda6" data-fpl-component="primitive"><input type="radio" name="flow" value="VERTICAL" aria-label="Vertical"><span class="_12v7fda7" aria-hidden="true">↓</span></div>
+    <div class="_12v7fda6" data-fpl-component="primitive"><input type="radio" name="flow" value="HORIZONTAL" aria-label="Horizontal" checked><span class="_12v7fda7" aria-hidden="true">→</span></div>
+    <div class="_12v7fda6" data-fpl-component="primitive"><input type="radio" name="flow" value="GRID" aria-label="Grid" aria-readonly="true"><span class="_12v7fda7" aria-hidden="true">⊞</span></div>
+  </div></fieldset><button id="flow-extra" style="height:24px;width:24px;padding:0;border:0;background:transparent">↶</button></div><p class="muted">Resizing</p><div class="row">
+    <div id="dimension-field" class="field raw_components--borderFocusWithin--fixture"><div class="dimension_input--inputAndHug--fixture"><div class="dimension_input--dimensionInputContainer--fixture combo_box--container--fixture"><label class="combo_box--scrubbableControl--fixture scrubbable_control--container--fixture scrubbable_control--containerBordered--fixture"><span>W</span><input class="raw_components--input--fixture combo_box--input--fixture" aria-label="Width" value="360"></label></div><span class="dimension_input--hugFillText--fixture">Fill</span></div></div>
+    <div id="height-field" class="field select--container--fixture"><div class="select--hiddenInput--fixture" role="listbox" tabindex="0" aria-label="Height"></div><div class="select--input--fixture stack_sizing_select_v5--stackLayoutSizeInput--fixture"><span>H</span><span class="select--inputText--fixture" style="flex:1;margin-left:4px">420</span><span>Hug</span></div></div>
+  </div><div class="row"><div id="gap-field" class="field combo_box--container--fixture stack_panel_v4--ui3ComboBoxContainer--fixture"><label class="combo_box--scrubbableControl--fixture scrubbable_control--container--fixture scrubbable_control--containerBordered--fixture" style="width:calc(100% - 24px)"><span>↔</span><input class="raw_components--input--fixture" aria-label="Gap" value="60"></label><div class="select--container--fixture" style="width:24px;flex-shrink:0;margin-left:auto"><div class="select--hiddenInput--fixture" role="listbox" tabindex="0" aria-label="Gap mode"></div><div class="select--input--fixture stack_panel_v4--selectInput--fixture">⌄</div></div></div></div><div class="row"><div id="radius-field" class="field combo_box--container--fixture"><label class="scrubbable_control--container--fixture scrubbable_control--containerBordered--fixture"><span>⌜</span><input class="raw_components--input--fixture" aria-label="Corner radius" value="16"></label></div><button>⌗</button></div></div>
+  <div class="section"><h3>Fill</h3><div class="row"><span class="swatch"></span><span>FFCC00</span><span class="muted" style="margin-left:auto">100%</span></div></div>
+  <div class="row"><div id="compound-field" class="field color_controls--colorInputs--fixture raw_components--multiValueInput--fixture raw_components--borderFocusWithin--fixture"><label class="color_controls--hex--fixture scrubbable_control--container--fixture scrubbable_control--containerBordered--fixture"><span class="swatch"></span><input class="raw_components--input--fixture" aria-label="Fill color" value="1E1E1E"></label><label id="percent-field" class="color-controls-opacity scrubbable_control--container--fixture scrubbable_control--containerBordered--fixture"><input class="raw_components--input--fixture" aria-label="Fill opacity" value="100"><span>%</span></label></div></div>
+  <div class="section"><h3>Export</h3><button style="width:100%">Export selection</button></div>
+</aside>
+<div id="toolbar" data-testid="editor-toolbar" class="toolbar_view--toolbar--fixture"><button aria-pressed="true" aria-label="Move">↖</button><button aria-label="Frame">⌗</button><button aria-label="Rectangle">□</button><button aria-label="Pen">♧</button><button aria-label="Text">T</button><button aria-label="Comment">▢</button></div>
+<div id="menu-position" class="menu-position" role="menu"><div id="menu" class="multilevel--pointingDropdown--fixture base--dropdown--fixture" data-preferred-theme="dark" data-editor-theme="design"><div class="multilevel--optionBase--fixture base--_optionBase--fixture">Copy</div><div id="highlighted-item" class="multilevel--optionActive--fixture multilevel--optionBase--fixture base--_optionBase--fixture"><span id="menu-icon" class="multilevel--iconContainer--fixture" role="button">⌕</span><span>Actions…</span><span style="margin-left:auto">Ctrl+K</span></div><div class="multilevel--optionBase--fixture base--_optionBase--fixture">Duplicate</div></div></div>
+<div id="tool-menu-shell" class="multilevel--pointingDropdown--fixture base--dropdown--fixture" data-preferred-theme="dark" data-editor-theme="design"><div id="tool-menu" role="menu"><div class="base--_optionBase--fixture" role="menuitem">Move</div><div class="base--_optionBase--fixture" role="menuitem">Hand tool</div><div class="base--_optionBase--fixture" role="menuitem">Scale</div></div></div>
+<div id="native-menu" data-fpl-popup><ul role="menu"><li role="menuitem" data-fpl-selected><div id="native-menu-highlight" data-fpl-component>File →</div></li><li role="menuitem"><div>Community</div></li><li role="menuitem"><div>Preferences</div></li></ul></div>
+<div id="library-search-popup" role="dialog"><div id="library-search" class="xkjjsvj xkjjsvi xkjjsva" data-fpl-component><span>⌕</span><input class="xkjjsvk xkjjsvi xkjjsva" placeholder="Search"></div></div>
+<div id="share-dialog" role="dialog"><div id="share-card"><p style="margin:0 0 16px">Share to selection</p><div id="invite-wrapper"><input placeholder="Add comma separated emails to invite"></div><div id="agent-banner">Build plugins with the Figma agent</div></div></div>
+<div id="multiplayer-tooltip" role="tooltip" style="position:absolute;left:-1500px">Multiplayer tools</div>
+<section id="home-fixture" data-testid="file-browser" data-preferred-theme="dark" data-editor-theme="bake-filebrowser"><nav aria-label="Workspace"><h2 style="margin:8px 16px 24px">doromiert</h2><a id="recent-link" class="sidebar_row--sidebarRowContainer--fixture" href="#" aria-current="page"><div id="recent-row" class="sidebar_row--sidebarRow--fixture sidebar_row--sidebarRowSelected--fixture"><span>◷</span><span>Recents</span></div></a><a class="sidebar_row--sidebarRowContainer--fixture" href="#"><div id="community-row" class="sidebar_row--sidebarRow--fixture"><span>◇</span><span>Community</span></div></a><div class="section" style="padding:16px"><h3>Project Metro</h3><p>Drafts</p><p>All projects</p><p>Trash</p></div></nav><main><button id="more" aria-haspopup="menu" aria-expanded="true" aria-pressed="true" style="float:right">More ⌄</button><h2>Recents</h2><div class="tabs"><button aria-pressed="true">Recently viewed</button><button>Shared files</button></div><div class="file-cards"><div class="file-card"><div class="file-card-preview"></div><p>Project Metro</p></div><div class="file-card"><div class="file-card-preview" style="background:#ffcc00"></div><p>Components</p></div></div></main></section>
+<script>
+// Floating dialogs may be mounted below the inspector rather than portaled.
+document.querySelector('#right').append(document.querySelector('#library-search-popup'));
+const gl=document.querySelector('canvas').getContext('webgl');
+if(gl){gl.clearColor(.18,.72,.40,1);gl.clear(gl.COLOR_BUFFER_BIT);document.title='WebGL OK';}
+window.checkTheme=(stage)=>{
+  const root=document.documentElement, css=getComputedStyle(root), themed=root.hasAttribute('data-select-adwaita');
+  const style=el=>getComputedStyle(document.querySelector(el));
+  const equivalent=(a,b)=>{const el=document.createElement('span');el.style.color=b;document.body.append(el);const match=a===getComputedStyle(el).color;el.remove();return match;};
+  const sidebar=style('#left'), toolbar=style('#toolbar'), menu=style('#menu');
+  const pixel=new Uint8Array(4); gl.clearColor(.18,.72,.40,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+  const artwork=style('#artwork');
+  const untouched=artwork.backgroundColor==='rgb(255, 255, 255)'&&artwork.fontFamily.includes('Georgia')&&style('.swatch').backgroundColor==='rgb(255, 204, 0)'&&pixel[0]===46&&pixel[1]===184&&pixel[2]===102;
+  const enabled=stage!=='disabled';
+  const controls=style('#left input').borderRadius==='3px'&&toolbar.borderRadius==='14px'&&menu.borderRadius==='8px';
+  const palette=equivalent(sidebar.backgroundColor,css.getPropertyValue('--select-sidebar'))&&equivalent(menu.backgroundColor,css.getPropertyValue('--select-popover'));
+  const transparent=el=>style(el).backgroundColor==='rgba(0, 0, 0, 0)';
+  const fieldRoots=['#dimension-field','#height-field','#radius-field','#compound-field','#x-field','#y-field','#rotation-field','#gap-field'];
+  const fields=style('#rotation-button').backgroundColor===style('#rotation-field').backgroundColor&&fieldRoots.every(el=>style(el).borderRadius==='9px'&&style(el).height==='24px'&&!transparent(el))&&
+    ['#gap-field input','#gap-field label','#gap-field .select--container--fixture','#gap-field .select--input--fixture','#x-field input','#y-field input','#rotation-field input','#dimension-field .dimension_input--inputAndHug--fixture','#dimension-field .combo_box--container--fixture','#dimension-field label','#dimension-field input','#dimension-field .dimension_input--hugFillText--fixture','#height-field .select--input--fixture','#height-field .select--hiddenInput--fixture','#radius-field label','#radius-field input','#compound-field label','#compound-field input','#percent-field','#percent-field input'].every(transparent);
+  const pages=style('#selected-page').borderRadius==='9px'&&equivalent(style('#selected-page').color,css.getPropertyValue('--select-accent'))&&equivalent(style('#selected-page span').color,css.getPropertyValue('--select-accent'));
+  const menus=style('#highlighted-item').borderRadius==='5px'&&style('#highlighted-item').backgroundColor!=='rgb(145, 65, 172)'&&equivalent(style('#highlighted-item').color,css.getPropertyValue('--select-accent'))&&transparent('#menu-position')&&style('#menu-position').boxShadow==='none'&&transparent('#tool-menu')&&style('#tool-menu').boxShadow==='none'&&transparent('#menu-icon')&&style('#menu').padding==='8px'&&style('#tool-menu-shell').padding==='8px';
+  const focused=document.querySelector('#compound-field input');focused.focus();
+  const focus=style('#compound-field').boxShadow!=='none'&&style('#compound-field label').boxShadow==='none'&&style('#compound-field input').outlineStyle==='none';focused.blur();
+  const flowGroup=style('#flow [data-radio-options-root]');
+  const selected=document.querySelector('#flow input:checked'), selectedFace=selected.nextElementSibling;
+  const faceStyle=()=>getComputedStyle(selectedFace);
+  const flow=flowGroup.padding==='3px'&&flowGroup.height==='30px'&&faceStyle().height==='24px'&&faceStyle().borderRadius==='6px'&&equivalent(faceStyle().backgroundColor,css.getPropertyValue('--select-toggle-bg'))&&faceStyle().boxShadow!=='none'&&style('#flow input[aria-readonly] + span').opacity==='0.4';
+  selected.focus();const flowFocus=faceStyle().outlineWidth==='2px';selected.blur();
+  const vertical=document.querySelector('#flow input[value=VERTICAL]');vertical.checked=true;
+  const flowSwitch=equivalent(getComputedStyle(vertical.nextElementSibling).backgroundColor,css.getPropertyValue('--select-toggle-bg'))&&faceStyle().backgroundColor==='rgba(0, 0, 0, 0)';
+  selected.checked=true;
+  const rect=el=>document.querySelector(el).getBoundingClientRect();
+  const center=el=>rect(el).y+rect(el).height/2;
+  const centered=Math.abs(center('#flow [data-radio-options-root]')-center('#flow-extra'))<.1&&['#dimension-field label','#gap-field label'].every(el=>style(el).top==='0px'&&Math.abs(center(el)-center(el+' input'))<.1);
+  const vanilla=style('#multiplayer').borderRadius==='50px'&&style('#multiplayer button').borderRadius==='50%'&&style('#multiplayer-tooltip').borderRadius==='4px'&&style('#library-search').height==='32px'&&transparent('#library-search input')&&style('#library-search input').outlineStyle==='none'&&transparent('#layers-toggle')&&transparent('#collection-row button')&&transparent('#variable-group button');
+  const popups=style('#agent-banner').backgroundColor!=='rgb(57, 67, 96)'&&transparent('#share-dialog')&&transparent('#native-menu ul')&&transparent('#native-menu li')&&style('#native-menu ul').boxShadow==='none'&&style('#native-menu ul').borderTopWidth==='0px'&&style('#native-menu-highlight').backgroundColor===style('#highlighted-item').backgroundColor&&style('#variable-color').paddingLeft==='8px';
+  const shareHovered=document.querySelector('#share-button').matches(':hover');
+  const share=shareHovered&&style('#share-button').backgroundColor!=='rgb(85, 85, 85)'&&equivalent(style('#share-button').color,css.getPropertyValue('--select-accent-fg'));
+  const invite=document.querySelector('#invite-wrapper input');invite.focus();
+  const inviteFocus=style('#invite-wrapper').outlineWidth==='1px'&&style('#invite-wrapper input').outlineStyle==='none'&&transparent('#invite-wrapper input');invite.blur();
+  const restored=sidebar.backgroundColor==='rgb(44, 44, 44)'&&toolbar.borderRadius==='4px'&&!document.querySelector('#select-adwaita-theme');
+  const passed=untouched&&(enabled ? themed&&controls&&palette&&fields&&pages&&menus&&focus&&flow&&flowFocus&&flowSwitch&&centered&&vanilla&&popups&&share&&inviteFocus : !themed&&restored);
+  window.themeResults??={};window.themeResults[stage]={passed,untouched,controls,palette,fields,pages,menus,focus,flow,flowFocus,flowSwitch,centered,vanilla,popups,share,shareHovered,inviteFocus,bg:sidebar.backgroundColor};
+  console.info('select-editor-theme:'+stage+':'+(passed?'PASS':'FAIL')+':'+JSON.stringify(window.themeResults[stage]));
+};
+window.homeFixture=on=>{document.querySelector('#home-fixture').style.display=on?'block':'none';};
+window.checkHomeTheme=()=>{
+  const style=el=>getComputedStyle(document.querySelector(el));
+  const root=document.documentElement, bg=style('#home-fixture').backgroundColor;
+  const recent=document.querySelector('#recent-row').getBoundingClientRect(), community=document.querySelector('#community-row').getBoundingClientRect();
+  const aligned=recent.x===community.x&&recent.width===community.width&&recent.height===community.height&&recent.x===8;
+  const singleHighlight=style('#recent-link').backgroundColor==='rgba(0, 0, 0, 0)'&&style('#recent-row').backgroundColor!=='rgba(0, 0, 0, 0)';
+  const normalMore=style('#more').backgroundColor!==style('#recent-row').backgroundColor;
+  const passed=root.hasAttribute('data-select-adwaita-home')&&bg!=='rgb(44, 44, 44)'&&aligned&&singleHighlight&&normalMore;
+  console.info('select-editor-theme:homepage:'+(passed?'PASS':'FAIL')+':'+JSON.stringify({aligned,singleHighlight,normalMore}));
+};
+</script></body></html>

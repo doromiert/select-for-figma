@@ -38,9 +38,15 @@ Tab titles are centered over their full width; close buttons use circular hover 
 
 Middle-click a tab in the header or overview to close it.
 
+Ctrl+Tab opens a thumbnail grid, including Home; release Ctrl to activate the highlighted tab. Ctrl+Shift+Tab cycles backward and Esc cancels. Preferences → Workspace → Ctrl+Tab Order selects tab position (default) or most recently used order.
+
 Ctrl+C/Ctrl+Insert and Ctrl+X copy or cut web selections into the desktop clipboard. Website copy buttons, including Figma’s token and link buttons, use the same GTK clipboard bridge. Text, HTML, Figma object data and PNG images retain their formats; Ctrl+V continues to paste from the desktop clipboard. Clipboard payloads travel through Chromium process messages and are not logged.
 
 Group cards match ordinary preview dimensions, with a 2×2 preview and the title underneath. Click one to reveal a full-width drawer directly beneath its row, growing downward with its heading visible first; the pointer stays aligned to the group and the other cards dim. Escape or the drawer’s collapse button closes it. Choose **New Tab Group…** from the main menu or the overview’s Tab Options menu to create a group with a new file tab. Right-click an existing tab for **New Group…** or **Move to Group**; right-click the group label/card to rename, collapse, or ungroup it. Drag group labels or overview cards to reorder whole groups; their members move together. Drag individual tabs within a group to reorder its members, onto another group to move it there, or out of the drawer into empty overview space to remove it from the group. Drop a tab onto the middle of another tab to create a group; use the edges to reorder. This works in both the header and overview. Drag a tab or whole group outside the window to open it in a new window, preserving the existing pages and the group’s last-used tab. Reordering uses the same live movement and animated settling as ordinary tabs. Members stay together in both the header and keyboard switching order. Groups are enabled in the normal app without flags.
+
+## Editor theme
+
+Figma's homepage and editor chrome use an Adwaita theme by default, inspired by [Rnote](https://rnote.flxzt.net/): rounded floating toolbars, quieter side panels, unified input fields and GNOME accent colors. It follows Select's Light, Dark or Follow System appearance and updates open documents immediately, including nested context menus and page selections. Canvas artwork, color swatches and document typography retain their original styling. Disable **Preferences → Appearance → Adwaita Editor Theme** to restore Figma's own styling. Sign-in pages retain their original styling. The theme uses Figma's UI color tokens and panel selectors; editor markup changes may require theme updates.
 
 ## KeePassXC
 

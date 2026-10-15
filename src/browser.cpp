@@ -71,6 +71,13 @@ Browser::Browser(std::string address, bool software) : url(std::move(address)), 
   overlay_ = gtk_overlay_new(); g_object_ref_sink(overlay_);
   gtk_widget_set_hexpand(overlay_, true); gtk_widget_set_vexpand(overlay_, true);
   g_object_set_data(G_OBJECT(overlay_), "browser", this);
+  for (const auto* signal : {"notify::dark", "notify::accent-color"})
+    g_signal_connect(adw_style_manager_get_default(), signal, G_CALLBACK(+[](AdwStyleManager*, GParamSpec*, Browser* self) {
+      // Named GTK colors update after the style manager emits its notification.
+      g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, +[](gpointer p) -> gboolean {
+        (*static_cast<CefRefPtr<Browser>*>(p))->refresh_theme(); return G_SOURCE_REMOVE;
+      }, new CefRefPtr<Browser>(self), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
+    }), this);
   area_ = gtk_gl_area_new();
   gtk_gl_area_set_allowed_apis(GTK_GL_AREA(area_), GDK_GL_API_GLES);
   gtk_gl_area_set_required_version(GTK_GL_AREA(area_), 3, 0);
@@ -119,6 +126,7 @@ Browser::Browser(std::string address, bool software) : url(std::move(address)), 
   setup_input();
 }
 Browser::~Browser() {
+  g_signal_handlers_disconnect_by_data(adw_style_manager_get_default(), this);
   g_clear_pointer(&account_pixels_,g_bytes_unref);
   if (thumbnail_idle_) g_source_remove(thumbnail_idle_);
   // A focused widget can emit controller signals while being removed. Detach
@@ -144,7 +152,7 @@ Window* Browser::owner() const {
 void Browser::changed() { if (on_changed) on_changed(); else if (owner()) owner()->update(); }
 void Browser::refresh_zane() { if (zane_) zane_->refresh(); }
 void Browser::start() {
-  if (loaded || creating_ || browser_ || closing) return;
+  if (loaded || creating_ || browser_ || closing || (owner() && (owner()->closing || owner()->destroyed))) return;
   if (owner() && owner()->app.smoke_test && Policy::is_figma(url)) return;
   if (is_home && !is_auth_popup && owner() && (owner()->app.smoke_test || owner()->app.render_test || owner()->app.auth_test) &&
       !(owner()->app.auth_test && url.rfind("http://127.0.0.1:", 0) == 0)) return;
@@ -173,7 +181,7 @@ void Browser::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   if (closing) { browser_->GetHost()->CloseBrowser(true); return; }
   browser_->GetHost()->WasResized();
   set_visible(gtk_widget_get_mapped(area_));
-  if (owner()) set_dark(adw_style_manager_get_dark(adw_style_manager_get_default()));
+  refresh_theme();
   set_permissions();
   // Native creations start blank: load only the latest requested address once
   // creation finishes. Popups retain Chromium's opener and initial navigation.
@@ -217,8 +225,63 @@ void Browser::set_visible(bool visible) {
   if (browser_) { browser_->GetHost()->WasHidden(!visible); if (visible) browser_->GetHost()->Invalidate(PET_VIEW); }
   if (browser_ && owner() && owner()->zane_account) browser_->GetHost()->WasResized();
 }
-void Browser::set_dark(bool dark) {
-  // Figma's own account preference controls canvas appearance. The shell follows GNOME.
+void Browser::refresh_theme() {
+  auto* win = owner();
+  if (!browser_ || !win || closing) return;
+  const bool fixture = win->app.render_test && g_getenv("FIGMA_GTK_TEST_EDITOR_THEME") && url.starts_with("data:text/html;base64,");
+  if (!Policy::is_figma(url) && !fixture) return;
+  const bool enabled = win->app.state.adwaita_editor && !Policy::is_sign_in(url);
+  const bool home = !Policy::is_file(url) && !fixture;
+  std::string css;
+  if (enabled) {
+    const bool dark = adw_style_manager_get_dark(adw_style_manager_get_default());
+    const auto color = [&](const char* name, const char* fallback) {
+      GdkRGBA rgba; gdk_rgba_parse(&rgba, fallback);
+      G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+      gtk_style_context_lookup_color(gtk_widget_get_style_context(widget()), name, &rgba);
+      G_GNUC_END_IGNORE_DEPRECATIONS
+      char* value = gdk_rgba_to_string(&rgba); std::string result(value); g_free(value); return result;
+    };
+    css = std::string("html[data-select-adwaita]{color-scheme:")+(dark ? "dark;" : "light;");
+    css += "--select-bg:"+color("window_bg_color", dark ? "#242424" : "#fafafa")+";";
+    css += "--select-sidebar:"+color("sidebar_bg_color", dark ? "#303030" : "#ebebeb")+";";
+    css += "--select-toolbar:"+color("headerbar_bg_color", dark ? "#303030" : "#ffffff")+";";
+    css += "--select-popover:"+color("popover_bg_color", dark ? "#383838" : "#ffffff")+";";
+    css += "--select-fg:"+color("window_fg_color", dark ? "#ffffff" : "#2e3436")+";";
+    css += "--select-toggle-bg:"+color("active_toggle_bg_color", dark ? "#66666b" : "#ffffff")+";";
+    css += "--select-toggle-fg:"+color("active_toggle_fg_color", dark ? "#ffffff" : "#2e3436")+";";
+    const std::string accent_bg = color("accent_bg_color", "#3584e4");
+    GdkRGBA accent, standalone;
+    gdk_rgba_parse(&accent, accent_bg.c_str()); adw_rgba_to_standalone(&accent, dark, &standalone);
+    char* accent_css = gdk_rgba_to_string(&standalone);
+    css += std::string("--select-accent:")+accent_css+";"; g_free(accent_css);
+    css += "--select-accent-bg:"+accent_bg+";";
+    css += "--select-accent-fg:"+color("accent_fg_color", "#ffffff")+";";
+    css += "--select-font:'Adwaita Sans',Cantarell,system-ui,sans-serif;}\n";
+    auto* bytes = g_resources_lookup_data("/io/github/doromiert/FigmaGtk/theme/adwaita.css", G_RESOURCE_LOOKUP_FLAGS_NONE, nullptr);
+    if (!bytes) return;
+    gsize size; const auto* data = static_cast<const char*>(g_bytes_get_data(bytes, &size)); css.append(data, size); g_bytes_unref(bytes);
+  }
+  auto* node = json_node_new(JSON_NODE_VALUE); json_node_set_string(node, css.c_str());
+  char* quoted = json_to_string(node, false); json_node_free(node);
+  const std::string script = std::string(R"JS((() => {
+    const css = )JS")+quoted+R"JS(;
+    const root = document.documentElement;
+    if (!root) return;
+    let style = document.getElementById('select-adwaita-theme');
+    if (!css) { style?.remove(); root.removeAttribute('data-select-adwaita'); root.removeAttribute('data-select-adwaita-home'); return; }
+    if (!style) {
+      style = document.createElement('style'); style.id = 'select-adwaita-theme';
+      const nonce = document.querySelector('style[nonce], script[nonce]')?.nonce;
+      if (nonce) style.nonce = nonce;
+      (document.head || root).append(style);
+    }
+    style.textContent = css;
+    root.setAttribute('data-select-adwaita', '');
+    root.toggleAttribute('data-select-adwaita-home', )JS"+(home ? "true" : "false")+R"JS();
+  })())JS";
+  g_free(quoted);
+  browser_->GetMainFrame()->ExecuteJavaScript(script, "figma-gtk://theme", 1);
 }
 GdkPaintable* Browser::thumbnail() {
   // GTK retains the last full-resolution render node, including its GL texture.
@@ -613,12 +676,14 @@ void Browser::OnAddressChange(CefRefPtr<CefBrowser> source, CefRefPtr<CefFrame> 
   if (Policy::is_file(url) && !(owner() && owner()->zane_account)) { if (!zane_) zane_ = std::make_unique<Zane>(*this); zane_->ensure(frame); }
   else if (zane_) zane_->stop();
   set_permissions();
+  refresh_theme();
 }
 void Browser::OnLoadingStateChange(CefRefPtr<CefBrowser> source, bool is_loading, bool, bool) { if (!owns(source)) return; loading = is_loading; changed(); }
 void Browser::OnLoadEnd(CefRefPtr<CefBrowser> source, CefRefPtr<CefFrame> frame, int status) {
   if (!owns(source)) return;
   if (!frame->IsMain()) return;
   const std::string completed = frame->GetURL();
+  refresh_theme();
   if (owner() && owner()->zane_account) {
     if(owner()->app.render_test&&g_getenv("FIGMA_GTK_TEST_ZANE_USER_MODE")&&completed.starts_with("data:text/html;base64,")) frame->ExecuteJavaScript(R"JS(
       window.fixtureCurrentPage='2:1';window.fixtureState.mirror.appModel.currentPage='2:1';
@@ -692,6 +757,14 @@ bool Browser::OnProcessMessageReceived(CefRefPtr<CefBrowser> source_browser,CefR
 }
 bool Browser::OnConsoleMessage(CefRefPtr<CefBrowser> source_browser, cef_log_severity_t, const CefString& message, const CefString& source, int) {
   if (!owns(source_browser)) return true;
+  if (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_EDITOR_THEME") && message.ToString().starts_with("select-editor-theme:")) {
+    const bool passed = message.ToString().find(":FAIL") == std::string::npos;
+    g_print("Editor theme diagnostic: %s; %s\n", passed ? "PASS" : "FAIL", message.ToString().c_str());
+    if (!passed) owner()->app.diagnostic_failed = true;
+    const int checks = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget()), "editor-theme-checks"));
+    g_object_set_data(G_OBJECT(widget()), "editor-theme-checks", GINT_TO_POINTER(checks+1));
+    return true;
+  }
   if(owner()&&owner()->app.render_test&&g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")&&source.ToString()=="figma-gtk://diagnostic"&&message.ToString().starts_with("select-zane-canvas-actions:")) {
     const bool passed=message.ToString().ends_with(":PASS");
     g_object_set_data(G_OBJECT(widget()),"zane-canvas-actions-ok",GINT_TO_POINTER(passed));

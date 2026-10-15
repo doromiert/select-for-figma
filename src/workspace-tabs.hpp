@@ -9,6 +9,7 @@ class WorkspaceTabs {
 public:
   explicit WorkspaceTabs(Window& window);
   ~WorkspaceTabs();
+  static GtkWidget* thumbnail(CefRefPtr<Browser> browser, int width, int height);
   GtkWidget* strip() const { return strip_; }
   GtkWidget* overview() const { return overview_; }
   GtkWidget* create_root(GtkWidget* workspace);

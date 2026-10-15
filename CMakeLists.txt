@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
-project(FigmaGtk VERSION 0.1.0 LANGUAGES C CXX)
+project(FigmaGtk VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
 include(CTest)
-file(GLOB APP_BUILD_SOURCES CONFIGURE_DEPENDS src/*.cpp src/*.hpp data/*.in data/*.js data/*.xml data/*.svg data/icons/*.svg)
-list(APPEND APP_BUILD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" "${CMAKE_CURRENT_SOURCE_DIR}/flake.nix" "${CMAKE_CURRENT_SOURCE_DIR}/flake.lock")
+file(GLOB APP_BUILD_SOURCES CONFIGURE_DEPENDS src/*.cpp src/*.hpp data/*.in data/*.js data/*.css data/*.xml data/*.svg data/icons/*.svg)
+list(APPEND APP_BUILD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" "${CMAKE_CURRENT_SOURCE_DIR}/flake.nix" "${CMAKE_CURRENT_SOURCE_DIR}/flake.lock" "${CMAKE_CURRENT_SOURCE_DIR}/package.nix")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${APP_BUILD_SOURCES})
 set(APP_SOURCE_HASHES "")
 foreach(source IN LISTS APP_BUILD_SOURCES)
@@ -21,7 +21,7 @@ find_program(GLIB_COMPILE_RESOURCES glib-compile-resources REQUIRED)
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/icons.c"
   COMMAND "${GLIB_COMPILE_RESOURCES}" "${CMAKE_CURRENT_SOURCE_DIR}/data/icons.gresource.xml"
     "--sourcedir=${CMAKE_CURRENT_SOURCE_DIR}/data" --generate-source "--target=${CMAKE_CURRENT_BINARY_DIR}/icons.c"
-  DEPENDS data/clipboard.js data/icons.gresource.xml data/icons/external-link-symbolic.svg data/zane.js data/zane-native.js VERBATIM)
+  DEPENDS data/clipboard.js data/icons.gresource.xml data/icons/external-link-symbolic.svg data/zane.js data/zane-native.js data/adwaita.css VERBATIM)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk4>=4.16 libadwaita-1>=1.8)
 pkg_check_modules(SUPPORT REQUIRED IMPORTED_TARGET json-glib-1.0 epoxy fontconfig freetype2 libudev libsodium libsecret-1 libsoup-3.0)
 

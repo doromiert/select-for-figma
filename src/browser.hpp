@@ -45,7 +45,7 @@ public:
   void forward();
   void close();
   void set_visible(bool visible);
-  void set_dark(bool dark);
+  void refresh_theme();
   void set_permissions();
   void refresh_zane();
   bool canvas_input(const std::string& operation, double x, double y, double dx, double dy, const std::string& shortcut);

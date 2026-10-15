@@ -9,10 +9,12 @@ class State {
 public:
   explicit State(std::string directory = "");
   bool restore_session = true;
+  bool tab_switcher_mru = false;
   bool notifications = true;
   bool local_fonts = true;
   bool keepassxc_paired = false;
   std::string appearance = "system";
+  bool adwaita_editor = true;
   std::string zane_chat_model, zane_chat_effort;
   std::string zane_work_model, zane_work_effort;
   bool zane_account_presence = false;

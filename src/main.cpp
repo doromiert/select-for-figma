@@ -17,7 +17,7 @@
 
 namespace {
 GtkWidget* preference_row(GtkWidget* widget, const char* title) {
-  if (ADW_IS_COMBO_ROW(widget) && !g_strcmp0(adw_preferences_row_get_title(ADW_PREFERENCES_ROW(widget)), title)) return widget;
+  if (ADW_IS_PREFERENCES_ROW(widget) && !g_strcmp0(adw_preferences_row_get_title(ADW_PREFERENCES_ROW(widget)), title)) return widget;
   for (auto* child = gtk_widget_get_first_child(widget); child; child = gtk_widget_get_next_sibling(child)) if (auto* found = preference_row(child, title)) return found;
   return nullptr;
 }
@@ -239,6 +239,11 @@ int main(int argc, char** argv) {
     if (render_test) {
       if (g_getenv("FIGMA_GTK_TEST_DRAWER_LAYOUT")) gtk_window_set_default_size(window->window,1900,1000);
       std::string html = R"HTML(<!doctype html><html><head><meta charset="utf-8"><title>Chromium Render Check</title><style>body{font:18px system-ui;margin:0;padding:48px;background:#fafafa;color:#222}canvas{width:320px;height:240px;border-radius:12px}input{font:inherit;padding:12px;margin:24px 0}p{max-width:600px;line-height:1.5}</style></head><body><h1>Chromium rendering check</h1><p id="status">Checking WebGL…</p><canvas id="canvas" width="320" height="240"></canvas><br><input placeholder="Input method check"><script>const c=document.querySelector('canvas'), gl=c.getContext('webgl2')||c.getContext('webgl');document.querySelector('#status').textContent=gl?'WebGL is available. This green canvas is rendered by Chromium.':'WebGL unavailable';if(gl){gl.clearColor(.18,.72,.40,1);gl.clear(gl.COLOR_BUFFER_BIT)}document.title=gl?'WebGL OK':'WebGL FAILED';</script></body></html>)HTML";
+      if (g_getenv("FIGMA_GTK_TEST_EDITOR_THEME")) {
+        char* fixture = nullptr; gsize size;
+        if (!g_file_get_contents("tools/editor-theme-fixture.html", &fixture, &size, nullptr)) return 1;
+        html.assign(fixture, size); g_free(fixture);
+      }
       if (g_getenv("FIGMA_GTK_TEST_COPY")) html += R"HTML(<span id="copy-selection">Selected page text ✓</span><input id="copy-input"><button style="position:fixed;left:600px;top:300px;width:120px;height:60px" onclick="const el=document.querySelector('#copy-input');el.focus();el.select();document.execCommand('copy')">Copy fixture</button><script>
         window.copyMode='';
         document.addEventListener('copy',e=>{if(copyMode==='rich'){e.clipboardData.setData('text/plain','Figma objects ✓');e.clipboardData.setData('text/html','<b>Figma objects ✓</b>');e.clipboardData.setData('application/x-figma','fixture-objects');e.preventDefault();e.stopImmediatePropagation();}});
@@ -276,6 +281,134 @@ int main(int argc, char** argv) {
       char* encoded = g_base64_encode(reinterpret_cast<const guchar*>(html.data()), html.size());
       const std::string address = std::string("data:text/html;base64,") + encoded;
       auto first = window->open(address); g_free(encoded);
+      if (g_getenv("FIGMA_GTK_TEST_TAB_SWITCHER")) g_timeout_add_full(G_PRIORITY_DEFAULT, 1500, +[](gpointer p) -> gboolean {
+        auto first = *static_cast<CefRefPtr<Browser>*>(p); auto* window = first->owner();
+        auto second = window->open(first->url+"#second", false, true);
+        auto third = window->open(first->url+"#third", false, true);
+        first->name = "First document OK"; second->name = "Second document OK"; third->name = "Third document OK";
+        const auto group = window->workspace->create_group("Grouped tabs", third);
+        window->workspace->toggle_group(group);
+        window->native_home(); window->current()->navigate(first->url+"#home"); window->workspace->activate(first);
+        window->app.state.tab_switcher_mru = false;
+        struct SwitchTest { Window* window; CefRefPtr<Browser> first, second, third; int step = 0; };
+        g_timeout_add_full(G_PRIORITY_DEFAULT, 450, +[](gpointer p) -> gboolean {
+          auto* test = static_cast<SwitchTest*>(p); auto* w = test->window;
+          auto* panel = GTK_WIDGET(g_object_get_data(G_OBJECT(w->window), "tab-switcher"));
+          auto* grid = GTK_FLOW_BOX(g_object_get_data(G_OBJECT(w->window), "tab-switcher-grid"));
+          auto* keys = GTK_EVENT_CONTROLLER_KEY(g_object_get_data(G_OBJECT(w->window), "tab-switcher-keys"));
+          auto check = [w](bool ok, const char* name) { g_print("Tab switcher %s diagnostic: %s\n", name, ok ? "PASS" : "FAIL"); if (!ok) w->app.diagnostic_failed = true; };
+          auto press = [keys](guint key, GdkModifierType state) { gboolean handled = false; g_signal_emit_by_name(keys, "key-pressed", key, 0, state, &handled); return !!handled; };
+          auto forward = [&] { return press(GDK_KEY_Tab, GDK_CONTROL_MASK); };
+          auto backward = [&] { return press(GDK_KEY_ISO_Left_Tab, GdkModifierType(GDK_CONTROL_MASK|GDK_SHIFT_MASK)); };
+          auto release = [keys] { g_signal_emit_by_name(keys, "key-released", GDK_KEY_Control_L, 0, GdkModifierType(0)); };
+          auto selected = [grid] { auto* children = gtk_flow_box_get_selected_children(grid); const int index = children ? gtk_flow_box_child_get_index(GTK_FLOW_BOX_CHILD(children->data)) : -1; g_list_free(children); return index; };
+          switch (test->step++) {
+            case 0:
+              gtk_widget_grab_focus(test->first->surface());
+              check(forward() && gtk_widget_get_visible(panel) && selected() == 2 && w->current() == test->first && gtk_event_controller_get_propagation_phase(GTK_EVENT_CONTROLLER(keys)) == GTK_PHASE_CAPTURE, "position and deferred activation"); break;
+            case 1:
+              w->app.take_screenshot(*w, w->app.screenshot+".switcher.png");
+              {
+                auto* tile = gtk_flow_box_child_get_child(gtk_flow_box_get_child_at_index(grid, 1));
+                check(!GTK_IS_IMAGE(gtk_widget_get_first_child(tile)), "cached document thumbnail");
+                press(GDK_KEY_Up, GDK_CONTROL_MASK); check(selected() == 3, "grid row up");
+                press(GDK_KEY_Down, GDK_CONTROL_MASK); check(selected() == 2, "grid row down");
+              }
+              forward(); check(selected() == 3, "group member"); backward(); check(selected() == 2, "reverse");
+              release(); check(w->current() == test->second && !gtk_widget_get_visible(panel), "release commits"); break;
+            case 2:
+              forward(); forward(); check(selected() == 0, "Home in position order"); release(); check(w->current()->is_home, "Home activation"); break;
+            case 3:
+              backward(); check(selected() == 3, "Home reverse wrap"); press(GDK_KEY_Escape, GdkModifierType(0)); release(); check(w->current()->is_home && !gtk_widget_get_visible(panel), "Escape cancels");
+              w->app.state.tab_switcher_mru = true;
+              w->workspace->activate(test->first); w->workspace->activate(test->third); w->workspace->activate(test->second);
+              forward(); check(selected() == 1, "recent order"); forward(); check(selected() == 2, "frozen recent order"); backward(); release(); check(w->current() == test->third, "recent activation"); break;
+            case 4:
+              forward(); release(); check(w->current() == test->second, "recent toggle back");
+              forward(); release(); check(w->current() == test->third, "recent toggle forward");
+              forward(); g_signal_emit_by_name(grid, "child-activated", gtk_flow_box_get_child_at_index(grid, selected())); check(w->current() == test->second && !gtk_widget_get_visible(panel), "click commits");
+              w->workspace->activate(test->third); break;
+            case 5:
+              forward(); adw_tab_view_close_page(w->tabs, adw_tab_view_get_page(w->tabs, test->second->widget())); break;
+            case 6:
+              check(!gtk_widget_get_visible(panel), "closed candidate cancels");
+              forward(); release(); check(w->current() == test->first, "closed candidate pruned");
+              check(!press(GDK_KEY_Tab, GdkModifierType(0)), "ordinary Tab passes through");
+              for (int i = 0; i < 20; ++i) { auto tab = w->open(test->first->url+"#extra"+std::to_string(i), false, true); tab->name = "Extra document "+std::to_string(i+1); }
+              gtk_window_set_default_size(w->window, 480, 600); backward(); break;
+            case 7:
+              w->app.take_screenshot(*w, w->app.screenshot+".many.png");
+              check(gtk_widget_get_height(panel) <= 450 && gtk_widget_get_width(panel) <= gtk_widget_get_width(GTK_WIDGET(w->window)) && selected() == 22, "many tabs fit narrow window");
+              {
+                auto* scroll = GTK_SCROLLED_WINDOW(gtk_widget_get_ancestor(GTK_WIDGET(grid), GTK_TYPE_SCROLLED_WINDOW));
+                auto* adjustment = gtk_scrolled_window_get_vadjustment(scroll); graphene_rect_t bounds;
+                const bool measured = gtk_widget_compute_bounds(GTK_WIDGET(gtk_flow_box_get_child_at_index(grid, selected())), GTK_WIDGET(grid), &bounds);
+                check(measured && bounds.origin.y >= gtk_adjustment_get_value(adjustment)-1 && bounds.origin.y+bounds.size.height <= gtk_adjustment_get_value(adjustment)+gtk_adjustment_get_page_size(adjustment)+1, "selected thumbnail visible after wrap");
+                graphene_rect_t first, second;
+                check(gtk_widget_compute_bounds(GTK_WIDGET(gtk_flow_box_get_child_at_index(grid, 0)), GTK_WIDGET(grid), &first) && gtk_widget_compute_bounds(GTK_WIDGET(gtk_flow_box_get_child_at_index(grid, 1)), GTK_WIDGET(grid), &second) && second.origin.x > first.origin.x && second.origin.y == first.origin.y, "thumbnail grid has columns");
+              }
+              press(GDK_KEY_Escape, GdkModifierType(0)); w->show_preferences();
+              if (auto* dialog = adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(w->window))) {
+                auto* row = preference_row(GTK_WIDGET(dialog), "Ctrl+Tab Order");
+                check(row && ADW_IS_COMBO_ROW(row) && adw_combo_row_get_selected(ADW_COMBO_ROW(row)) == 1, "preference present");
+                if (row) { adw_combo_row_set_selected(ADW_COMBO_ROW(row), 0); check(!w->app.state.tab_switcher_mru, "preference updates"); }
+                adw_dialog_close(dialog);
+              } else check(false, "preference dialog");
+              g_object_set_data(G_OBJECT(w->window), "tab-switcher-tested", GINT_TO_POINTER(1)); return G_SOURCE_REMOVE;
+          }
+          return G_SOURCE_CONTINUE;
+        }, new SwitchTest{window, first, second, third}, +[](gpointer p) { delete static_cast<SwitchTest*>(p); });
+        return G_SOURCE_REMOVE;
+      }, new CefRefPtr<Browser>(first), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
+      if (g_getenv("FIGMA_GTK_TEST_EDITOR_THEME")) g_timeout_add_full(G_PRIORITY_DEFAULT, 2000, +[](gpointer p) -> gboolean {
+        struct ThemeTest { CefRefPtr<Browser> browser; int step = 0; };
+        g_timeout_add_full(G_PRIORITY_DEFAULT, 500, +[](gpointer p) -> gboolean {
+          auto* test = static_cast<ThemeTest*>(p); auto browser = test->browser; auto* window = browser->owner();
+          if (!window || !browser->cef_browser()) return G_SOURCE_REMOVE;
+          auto frame = browser->cef_browser()->GetMainFrame();
+          // Exercise the real CEF :hover state, including Figma's Share style.
+          if (test->step == 0 || test->step == 4) {
+            CefMouseEvent hover; hover.x = gtk_widget_get_width(browser->surface())-48; hover.y = 40;
+            browser->cef_browser()->GetHost()->SendMouseMoveEvent(hover, false);
+          }
+          switch (test->step++) {
+            case 0:
+              window->app.state.appearance = "light"; window->app.apply_appearance(); break;
+            case 1:
+              frame->ExecuteJavaScript("checkTheme('light')", "figma-gtk://diagnostic", 1);
+              window->app.take_screenshot(*window, window->app.screenshot+".light.png");
+              window->app.state.appearance = "dark"; window->app.apply_appearance(); break;
+            case 2:
+              frame->ExecuteJavaScript("checkTheme('dark'); if(themeResults.light.bg===themeResults.dark.bg) console.info('select-editor-theme:palette-change:FAIL'); else console.info('select-editor-theme:palette-change:PASS');", "figma-gtk://diagnostic", 1);
+              window->app.take_screenshot(*window, window->app.screenshot+".dark.png");
+              window->show_preferences(); break;
+            case 3: {
+              auto* dialog = adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(window->window));
+              auto* toggle = dialog ? preference_row(GTK_WIDGET(dialog), "Adwaita Editor Theme") : nullptr;
+              const bool available = toggle && ADW_IS_SWITCH_ROW(toggle) && adw_switch_row_get_active(ADW_SWITCH_ROW(toggle));
+              g_print("Editor theme preference diagnostic: %s\n", available ? "PASS" : "FAIL");
+              if (!available) { window->app.diagnostic_failed = true; return G_SOURCE_REMOVE; }
+              adw_switch_row_set_active(ADW_SWITCH_ROW(toggle), false); adw_dialog_close(dialog); break;
+            }
+            case 4:
+              frame->ExecuteJavaScript("checkTheme('disabled')", "figma-gtk://diagnostic", 1);
+              window->app.take_screenshot(*window, window->app.screenshot+".disabled.png");
+              window->app.state.adwaita_editor = true; browser->refresh_theme(); break;
+            case 5:
+              frame->ExecuteJavaScript("checkTheme('restored'); homeFixture(true)", "figma-gtk://diagnostic", 1);
+              browser->url = "https://www.figma.com/files/recent"; browser->refresh_theme(); break;
+            case 6:
+              frame->ExecuteJavaScript("checkHomeTheme()", "figma-gtk://diagnostic", 1);
+              window->app.take_screenshot(*window, window->app.screenshot+".homepage.png");
+              browser->url = "https://www.figma.com/login"; browser->refresh_theme(); break;
+            case 7:
+              frame->ExecuteJavaScript("checkTheme('disabled'); homeFixture(false)", "figma-gtk://diagnostic", 1);
+              browser->url = frame->GetURL(); browser->refresh_theme(); return G_SOURCE_REMOVE;
+          }
+          return G_SOURCE_CONTINUE;
+        }, new ThemeTest{*static_cast<CefRefPtr<Browser>*>(p)}, +[](gpointer p) { delete static_cast<ThemeTest*>(p); });
+        return G_SOURCE_REMOVE;
+      }, new CefRefPtr<Browser>(first), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
       if (g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")) g_timeout_add_full(G_PRIORITY_DEFAULT,6800,+[](gpointer p)->gboolean {
         auto browser=*static_cast<CefRefPtr<Browser>*>(p);
         if(browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(R"JS((()=>{
@@ -584,6 +717,15 @@ int main(int argc, char** argv) {
         } else if (app->render_test) {
           auto browser = window->current();
           g_print("Render diagnostic: title=%s; GPU shared frames=%s\n", browser ? browser->name.c_str() : "missing", browser && browser->gpu_frames ? "yes" : "no");
+          if (g_getenv("FIGMA_GTK_TEST_TAB_SWITCHER")) {
+            const bool complete = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(window->window), "tab-switcher-tested"));
+            g_print("Tab switcher completed diagnostic: %s\n", complete ? "PASS" : "FAIL"); if (!complete) app->diagnostic_failed = true;
+          }
+          if (g_getenv("FIGMA_GTK_TEST_EDITOR_THEME")) {
+            const bool complete = browser && GPOINTER_TO_INT(g_object_get_data(G_OBJECT(browser->widget()), "editor-theme-checks")) == 7;
+            g_print("Editor theme checks completed diagnostic: %s\n", complete ? "PASS" : "FAIL");
+            if (!complete) app->diagnostic_failed = true;
+          }
           if (!browser || browser->name.find("OK") == std::string::npos) app->diagnostic_failed = true;
           if (g_getenv("FIGMA_GTK_TEST_CREATION_RACE")) {
             const bool one = Browser::active_count == 1;

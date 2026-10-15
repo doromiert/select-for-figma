@@ -40,10 +40,19 @@ public:
   void show_shortcuts();
   void toggle_fullscreen();
   void native_home();
+  void cycle_tabs(int direction);
+  void finish_tab_cycle(bool activate);
   void refresh_home();
   void persist();
   void close();
 private:
+  GtkWidget* tab_switcher_ = nullptr;
+  GtkFlowBox* tab_switch_grid_ = nullptr;
+  guint tab_switch_scroll_tick_ = 0;
+  std::vector<Browser*> tab_mru_;
+  std::vector<CefRefPtr<Browser>> tab_switch_order_;
+  CefRefPtr<Browser> tab_switch_origin_;
+  size_t tab_switch_index_ = 0;
   GtkWidget* home_button_ = nullptr;
   GtkWidget* reload_ = nullptr;
   GtkWidget* toolbar_ = nullptr;

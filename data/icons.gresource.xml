@@ -10,4 +10,7 @@
   <gresource prefix="/io/github/doromiert/FigmaGtk/clipboard">
     <file alias="bridge.js">clipboard.js</file>
   </gresource>
+  <gresource prefix="/io/github/doromiert/FigmaGtk/theme">
+    <file>adwaita.css</file>
+  </gresource>
 </gresources>

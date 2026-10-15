@@ -10,6 +10,13 @@
     <p>Work with Figma in a native GNOME window. Open documents in tabs, browse them in the tab overview, and use installed fonts.</p>
     <p>Select for Figma uses Chromium to display Figma and GTK 4 with libadwaita for its desktop interface. Inspired by ReSketch.</p>
   </description>
+  <releases>
+    <release version="1.0.0" date="2026-10-15">
+      <description>
+        <p>First stable GTK release, with an Adwaita editor theme and a Ctrl+Tab thumbnail switcher that includes Home and supports tab position or most recently used order.</p>
+      </description>
+    </release>
+  </releases>
   <categories><category>Graphics</category></categories>
   <content_rating type="oars-1.1"/>
   <requires><internet>always</internet></requires>

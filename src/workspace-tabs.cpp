@@ -943,6 +943,27 @@ GtkWidget* WorkspaceTabs::group_button(const std::string& id) const {
   auto found = group_buttons_.find(id); return found == group_buttons_.end() ? nullptr : found->second;
 }
 
+GtkWidget* WorkspaceTabs::thumbnail(CefRefPtr<Browser> browser, int width, int height) {
+  GdkPaintable* image = browser->thumbnail(); GtkWidget* picture;
+  if (image) {
+    // Scale the cached full-resolution render node without a pixel readback.
+    GtkSnapshot* snapshot = gtk_snapshot_new(); graphene_rect_t bounds = GRAPHENE_RECT_INIT(0,0,static_cast<float>(width),static_cast<float>(height));
+    gtk_snapshot_push_clip(snapshot, &bounds);
+    const double ratio = static_cast<double>(width)/height;
+    const double source_ratio = std::max(.01, gdk_paintable_get_intrinsic_aspect_ratio(image));
+    const double iw = source_ratio > ratio ? height*source_ratio : width, ih = source_ratio > ratio ? height : width/source_ratio;
+    graphene_point_t origin = GRAPHENE_POINT_INIT(static_cast<float>((width-iw)/2), static_cast<float>((height-ih)/2)); gtk_snapshot_translate(snapshot, &origin);
+    gdk_paintable_snapshot(image, snapshot, iw, ih); gtk_snapshot_pop(snapshot);
+    graphene_size_t size = GRAPHENE_SIZE_INIT(static_cast<float>(width),static_cast<float>(height)); auto* cropped = gtk_snapshot_free_to_paintable(snapshot, &size);
+    picture = preview_picture(cropped,width,height); g_object_unref(cropped); g_object_unref(image);
+  } else {
+    picture = gtk_image_new_from_icon_name(browser->is_home ? "go-home-symbolic" : "io.github.doromiert.FigmaGtk");
+    gtk_image_set_pixel_size(GTK_IMAGE(picture), 48); gtk_widget_add_css_class(picture, "dim-label");
+  }
+  gtk_widget_add_css_class(picture, "thumbnail"); gtk_widget_set_overflow(picture, GTK_OVERFLOW_HIDDEN);
+  gtk_widget_set_size_request(picture, width, height); return picture;
+}
+
 GtkWidget* WorkspaceTabs::tab(CefRefPtr<Browser> browser, bool preview) {
   GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_add_css_class(box, preview ? "overview-tab" : "document-tab");
@@ -958,23 +979,9 @@ GtkWidget* WorkspaceTabs::tab(CefRefPtr<Browser> browser, bool preview) {
   GtkWidget* title = label(browser->name);
   if (preview) {
     GtkWidget* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-    GdkPaintable* image = browser->thumbnail(); GtkWidget* picture;
     const double ratio = std::clamp(static_cast<double>(std::max(1, gtk_widget_get_width(win_.content_)))/std::max(1, gtk_widget_get_height(win_.content_)), .8, 2.7);
     const int width = tile_width_-12, height = width/ratio;
-    if (image) {
-      // Keep the full-resolution texture in a scaled render node; only the
-      // paintable's logical requisition shrinks to the native thumbnail size.
-      GtkSnapshot* snapshot = gtk_snapshot_new(); graphene_rect_t bounds = GRAPHENE_RECT_INIT(0,0,static_cast<float>(width),static_cast<float>(height));
-      gtk_snapshot_push_clip(snapshot, &bounds);
-      const double source_ratio = gdk_paintable_get_intrinsic_aspect_ratio(image);
-      const double iw = source_ratio > ratio ? height*source_ratio : width, ih = source_ratio > ratio ? height : width/source_ratio;
-      graphene_point_t origin = GRAPHENE_POINT_INIT(static_cast<float>((width-iw)/2), static_cast<float>((height-ih)/2)); gtk_snapshot_translate(snapshot, &origin);
-      gdk_paintable_snapshot(image, snapshot, iw, ih); gtk_snapshot_pop(snapshot);
-      graphene_size_t size = GRAPHENE_SIZE_INIT(static_cast<float>(width),static_cast<float>(height)); auto* cropped = gtk_snapshot_free_to_paintable(snapshot, &size);
-      picture = preview_picture(cropped,width,height); g_object_unref(cropped); g_object_unref(image);
-    }
-    else { picture = gtk_image_new_from_icon_name("io.github.doromiert.FigmaGtk"); gtk_image_set_pixel_size(GTK_IMAGE(picture), 48); gtk_widget_add_css_class(picture, "dim-label"); }
-    gtk_widget_add_css_class(picture, "thumbnail"); gtk_widget_set_overflow(picture, GTK_OVERFLOW_HIDDEN);
+    GtkWidget* picture = thumbnail(browser, width, height);
     previews_[browser.get()] = picture; preview_buttons_[browser.get()] = main;
     gtk_widget_set_size_request(picture, width, height); gtk_box_append(GTK_BOX(content), picture); gtk_box_append(GTK_BOX(content), title);
     gtk_widget_set_margin_bottom(title, 6); gtk_button_set_child(GTK_BUTTON(main), content);

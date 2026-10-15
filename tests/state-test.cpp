@@ -11,6 +11,8 @@ int main(int argc, char** argv) {
       state.zane_work_model = "example-smart"; state.zane_work_effort = "high";
       g_assert_false(state.zane_account_presence); state.zane_account_presence = true;
       g_assert_true(state.zane_auto_edit_access); state.zane_auto_edit_access=false;
+      g_assert_false(state.tab_switcher_mru); state.tab_switcher_mru = true;
+      g_assert_true(state.adwaita_editor); state.adwaita_editor = false;
       state.tabs = {{"https://www.figma.com/design/a/File", "File"}, {"https://www.figma.com/app_auth/secret/grant", "Sign in"}, {"https://example.com/", "Untrusted"}};
       state.remember({"https://www.figma.com/design/a/File?node-id=1", "New title"});
       state.remember({"https://www.figma.com/design/a/File?node-id=2", "Newest"});
@@ -22,6 +24,8 @@ int main(int argc, char** argv) {
       g_assert_cmpstr(loaded.zane_work_model.c_str(), ==, "example-smart"); g_assert_cmpstr(loaded.zane_work_effort.c_str(), ==, "high");
       g_assert_true(loaded.zane_account_presence);
       g_assert_false(loaded.zane_auto_edit_access);
+      g_assert_false(loaded.adwaita_editor);
+      g_assert_true(loaded.tab_switcher_mru);
       loaded.restore_session = false; loaded.save();
       State disabled(directory); g_assert_true(disabled.tabs.empty()); g_assert_cmpuint(disabled.recent.size(), ==, 1);
     }
@@ -32,6 +36,7 @@ int main(int argc, char** argv) {
     const std::string file = std::string(directory) + "/state.json";
     g_file_set_contents(file.c_str(), "{\"width\":-5,\"appearance\":42,\"tabs\":\"wrong type\",\"recent\":[null,5,{}],\"exports\":[false]}", -1, nullptr);
     State state(directory); g_assert_cmpint(state.width, ==, 360); g_assert_true(state.tabs.empty()); g_assert_true(state.recent.empty());
+    g_assert_true(state.adwaita_editor); g_assert_false(state.tab_switcher_mru);
     std::filesystem::remove_all(directory); g_free(directory);
   });
   g_test_add_func("/state/tab-groups", +[] {

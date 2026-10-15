@@ -1,0 +1,336 @@
+/* Preserve Figma layout and canvas artwork; compact inspector controls below. */
+html[data-select-adwaita],
+html[data-select-adwaita] :is(body, .figma-light, .figma-dark, [data-preferred-theme], [data-editor-theme]) {
+  --font-family-default: var(--select-font) !important;
+  --font-family-ui: var(--select-font) !important;
+  --font-family-display: var(--select-font) !important;
+  --text-body-large-font-family: var(--select-font) !important;
+  --text-body-large-strong-font-family: var(--select-font) !important;
+  --text-body-medium-font-family: var(--select-font) !important;
+  --text-body-medium-strong-font-family: var(--select-font) !important;
+  --text-body-small-font-family: var(--select-font) !important;
+  --text-body-small-strong-font-family: var(--select-font) !important;
+  --text-heading-large-font-family: var(--select-font) !important;
+  --text-heading-medium-font-family: var(--select-font) !important;
+  --text-heading-small-font-family: var(--select-font) !important;
+  --text-display-font-family: var(--select-font) !important;
+  --color-bg: var(--select-sidebar) !important;
+  --color-bg-secondary: color-mix(in srgb, var(--select-fg) 6%, var(--select-sidebar)) !important;
+  --color-bg-secondary-hover: color-mix(in srgb, var(--select-fg) 10%, var(--select-sidebar)) !important;
+  --color-bg-secondary-pressed: color-mix(in srgb, var(--select-fg) 14%, var(--select-sidebar)) !important;
+  --color-bg-tertiary: color-mix(in srgb, var(--select-fg) 7%, var(--select-sidebar)) !important;
+  --color-bg-hover: color-mix(in srgb, var(--select-fg) 7%, var(--select-sidebar)) !important;
+  --color-bg-pressed: color-mix(in srgb, var(--select-fg) 12%, var(--select-sidebar)) !important;
+  --color-bg-selected: color-mix(in srgb, var(--select-accent) 18%, var(--select-sidebar)) !important;
+  --color-bg-selected-hover: color-mix(in srgb, var(--select-accent) 24%, var(--select-sidebar)) !important;
+  --color-bg-selected-pressed: color-mix(in srgb, var(--select-accent) 30%, var(--select-sidebar)) !important;
+  --color-bg-selected-secondary: color-mix(in srgb, var(--select-accent) 10%, var(--select-sidebar)) !important;
+  --color-bg-selected-tertiary: var(--color-bg-selected-secondary) !important;
+  --color-bg-selected-strong: var(--select-accent-bg) !important;
+  --color-bg-onselected: color-mix(in srgb, var(--select-accent) 22%, var(--select-sidebar)) !important;
+  --color-bg-onselected-hover: var(--color-bg-selected-hover) !important;
+  --color-bg-onselected-pressed: var(--color-bg-selected-pressed) !important;
+  --color-bg-brand: var(--select-accent-bg) !important;
+  --color-bg-brand-secondary: color-mix(in srgb, var(--select-accent-bg) 65%, var(--select-sidebar)) !important;
+  --color-bg-brand-tertiary: color-mix(in srgb, var(--select-accent) 18%, var(--select-sidebar)) !important;
+  --color-bg-info: var(--color-bg-brand-tertiary) !important;
+  --color-icon-info: var(--select-accent) !important;
+  --color-text-info: var(--select-accent) !important;
+  --color-bg-brand-hover: color-mix(in srgb, white 10%, var(--select-accent-bg)) !important;
+  --color-bg-brand-pressed: color-mix(in srgb, black 10%, var(--select-accent-bg)) !important;
+  --color-text: var(--select-fg) !important;
+  --color-text-secondary: color-mix(in srgb, var(--select-fg) 65%, transparent) !important;
+  --color-text-tertiary: color-mix(in srgb, var(--select-fg) 50%, transparent) !important;
+  --color-text-disabled: color-mix(in srgb, var(--select-fg) 38%, transparent) !important;
+  --color-text-brand: var(--select-accent) !important;
+  --color-text-selected: var(--select-accent) !important;
+  --color-text-onselected: var(--select-accent) !important;
+  --color-text-onbrand: var(--select-accent-fg) !important;
+  --color-icon: var(--select-fg) !important;
+  --color-icon-secondary: color-mix(in srgb, var(--select-fg) 65%, transparent) !important;
+  --color-icon-tertiary: color-mix(in srgb, var(--select-fg) 50%, transparent) !important;
+  --color-icon-brand: var(--select-accent) !important;
+  --color-icon-selected: var(--select-accent) !important;
+  --color-icon-onselected: var(--select-accent) !important;
+  --color-icon-onselected-secondary: var(--select-accent) !important;
+  --color-text-onselected-secondary: var(--select-accent) !important;
+  --color-icon-onbrand: var(--select-accent-fg) !important;
+  --color-border: color-mix(in srgb, var(--select-fg) 12%, transparent) !important;
+  --color-border-strong: color-mix(in srgb, var(--select-fg) 22%, transparent) !important;
+  --color-border-selected: var(--select-accent) !important;
+  --color-border-brand: var(--select-accent) !important;
+  --color-bg-menu: var(--select-popover) !important;
+  --color-text-menu: var(--select-fg) !important;
+  --color-text-menu-secondary: color-mix(in srgb, var(--select-fg) 65%, transparent) !important;
+  --color-icon-menu: var(--select-fg) !important;
+  --color-border-menu: color-mix(in srgb, var(--select-fg) 12%, transparent) !important;
+  --color-bg-menu-hover: color-mix(in srgb, var(--select-fg) 7%, var(--select-popover)) !important;
+  --color-bg-menu-pressed: color-mix(in srgb, var(--select-fg) 12%, var(--select-popover)) !important;
+  --color-bg-menu-selected: color-mix(in srgb, var(--select-accent) 18%, var(--select-popover)) !important;
+  --color-bg-menu-selected-hover: color-mix(in srgb, var(--select-accent) 24%, var(--select-popover)) !important;
+  --color-bg-menu-selected-pressed: color-mix(in srgb, var(--select-accent) 30%, var(--select-popover)) !important;
+  --color-bg-menu-selected-secondary: var(--color-bg-menu-selected) !important;
+  --color-bg-menu-selected-tertiary: var(--color-bg-menu-selected) !important;
+  --color-text-menu-selected: var(--select-accent) !important;
+  --color-text-menu-onselected: var(--select-accent) !important;
+  --color-text-menu-hover: var(--select-fg) !important;
+  --color-icon-menu-selected: var(--select-accent) !important;
+  --color-icon-menu-onselected: var(--select-accent) !important;
+  --color-bg-toolbar: var(--select-toolbar) !important;
+  --color-bg-toolbar-secondary: var(--select-toolbar) !important;
+  --color-bg-toolbar-hover: color-mix(in srgb, var(--select-fg) 7%, var(--select-toolbar)) !important;
+  --color-bg-toolbar-pressed: color-mix(in srgb, var(--select-fg) 12%, var(--select-toolbar)) !important;
+  --color-bg-toolbar-selected: color-mix(in srgb, var(--select-accent) 18%, var(--select-toolbar)) !important;
+  --color-bg-toolbar-selected-hover: color-mix(in srgb, var(--select-accent) 24%, var(--select-toolbar)) !important;
+  --color-bg-toolbar-selected-pressed: color-mix(in srgb, var(--select-accent) 30%, var(--select-toolbar)) !important;
+  --color-bg-toolbar-selected-secondary: var(--color-bg-toolbar-selected) !important;
+  --color-bg-toolbar-selected-tertiary: var(--color-bg-toolbar-selected) !important;
+  --color-text-toolbar: var(--select-fg) !important;
+  --color-text-toolbar-onselected: var(--select-accent) !important;
+  --color-icon-toolbar: var(--select-fg) !important;
+  --color-icon-toolbar-onselected: var(--select-accent) !important;
+  --color-border-toolbar: var(--color-border) !important;
+  --color-bg-tooltip: var(--select-popover) !important;
+  --color-text-tooltip: var(--select-fg) !important;
+}
+
+html[data-select-adwaita] :is(
+  [data-testid="left-panel"], [data-testid="left-sidebar"],
+  [data-testid="properties-panel"],
+  [class*="left_panel_container--panel--"], [class*="left_panel_island_container--islandContainer--"],
+  [class*="properties_panel--panelContainer--"]
+) {
+  background-color: var(--select-sidebar) !important;
+  color: var(--select-fg) !important;
+  font-family: var(--select-font) !important;
+  border-color: var(--color-border) !important;
+}
+
+html[data-select-adwaita] :is(
+  [data-testid="editor-toolbar"], [data-testid="toolbar"], [data-testid="toolbelt"],
+  [class*="toolbar_view--toolbar--"], [class*="tool_bar--toolBar--"],
+  [class*="toolbelt--toolbelt--"]
+) {
+  background-color: var(--select-toolbar) !important;
+  color: var(--select-fg) !important;
+  font-family: var(--select-font) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%), 0 1px 2px rgb(0 0 0 / 6%) !important;
+}
+
+/* Figma owns popup shells, scrims, hover targets and tooltips. Theme their
+   color tokens above, rather than painting their layout/positioning wrappers. */
+html[data-select-adwaita] :is(
+  [data-testid="share-button"], [data-testid="multiplayer-toolbar-share-button"]
+) {
+  --color-text: var(--select-accent-fg) !important;
+  --color-icon: var(--select-accent-fg) !important;
+  --color-bg: var(--select-accent-bg) !important;
+  background: var(--select-accent-bg) !important;
+  color: var(--select-accent-fg) !important;
+  border-radius: 9px !important;
+  &:hover:not(:disabled) {
+    --color-bg: var(--color-bg-brand-hover) !important;
+    --color-bg-secondary: var(--color-bg-brand-hover) !important;
+    --color-bg-tertiary: var(--color-bg-brand-hover) !important;
+    --color-bg-hover: var(--color-bg-brand-hover) !important;
+    background: var(--color-bg-brand-hover) !important;
+  }
+}
+
+/* FPL Input uses generated classes; support both input-style feature states.
+   Figma compound controls own one surface, including their labels and pills.
+   Keep all descendant inputs transparent, even through nested combo boxes. */
+html[data-select-adwaita] :where(
+  [data-testid="properties-panel"], [class*="properties_panel--panelContainer--"]
+) :is(
+  .xkjjsvc, .xkjjsvi,
+  [class*="scrubbable_control--container--"],
+  [class*="scrubbable_control--containerBordered--"],
+  [class*="combo_box--container--"],
+  [class*="raw_components--multiValueInput--"],
+  [class*="raw_components--borderFocusWithin--"],
+  [class*="dimension_input--inputAndHug--"],
+  [class*="select--container--"]
+):not(:where(
+  [role="dialog"], [role="dialog"] *,
+  [class*="variable_picker_ui--modalPanel--"] *, [class*="drilldown_picker--"] *
+)) {
+  background: color-mix(in srgb, var(--select-fg) 6%, var(--select-sidebar)) !important;
+  color: var(--select-fg) !important;
+  font-family: var(--select-font) !important;
+  box-sizing: border-box !important;
+  height: 24px !important;
+  min-height: 0 !important;
+  margin-block: 0 !important;
+  outline: none !important;
+  border-color: transparent !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+  &:focus-within { box-shadow: inset 0 0 0 2px var(--select-accent) !important; }
+  & :is(
+    input, .xkjjsvc, .xkjjsvi, [class*="raw_components--input--"],
+    [class*="select--input--"], [class*="select--hiddenInput--"],
+    [class*="select--container--"], [class*="scrubbable_control--container--"],
+    [class*="scrubbable_control--containerBordered--"],
+    [class*="scrubbable_control--scrubbableInput--"],
+    [class*="combo_box--container--"], [class*="combo_box--input--"],
+    [class*="combo_box--scrubbableControl--"],
+    [class*="raw_components--multiValueInput--"],
+    [class*="raw_components--borderFocusWithin--"],
+    [class*="dimension_input--inputAndHug--"],
+    [class*="dimension_input--hugFillText--"],
+    [class*="dimension_input--selectInput--"]
+  ) {
+    background: transparent !important;
+    border-color: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  & :is(input, .xkjjsvc, .xkjjsvi,
+    [class*="scrubbable_control--container--"], [class*="scrubbable_control--containerBordered--"],
+    [class*="combo_box--container--"], [class*="select--container--"], [class*="select--input--"],
+    [class*="dimension_input--inputAndHug--"], [class*="raw_components--borderFocusWithin--"]
+  ) {
+    height: 100% !important;
+    min-height: 0 !important;
+    margin-block: 0 !important;
+  }
+  /* These overlays retain a 3px UI3 offset after the field is compacted. */
+  & :is([class*="combo_box--input--"], [class*="combo_box--scrubbableControl--"]) {
+    top: 0 !important;
+  }
+
+}
+
+/* FPL SegmentedControl: Adwaita toggle groups have a 3px inset and a
+   neutral raised selection. Keep Figma's original radio inputs and handlers. */
+html[data-select-adwaita] :where(
+  [data-testid="properties-panel"], [class*="properties_panel--panelContainer--"]
+) ._12v7fda4 [data-radio-options-root] {
+  background: color-mix(in srgb, var(--select-fg) 10%, var(--select-sidebar)) !important;
+  border-radius: 9px !important;
+  box-sizing: border-box !important;
+  height: 30px !important;
+  align-self: center !important;
+  padding: 3px !important;
+  gap: 0 !important;
+  & > ._12v7fda6 {
+    min-width: 0 !important;
+    & > :is(._12v7fda7, ._12v7fda8) {
+      height: 24px !important;
+      border-radius: 6px !important;
+      background: transparent !important;
+      color: var(--select-fg) !important;
+      box-shadow: none !important;
+      outline: none !important;
+      --fpl-icon-color: var(--select-fg) !important;
+      --fpl-icon-color-2: var(--select-fg) !important;
+    }
+    & > input:checked + :is(._12v7fda7, ._12v7fda8) {
+      background: var(--select-toggle-bg) !important;
+      color: var(--select-toggle-fg) !important;
+      box-shadow: 0 1px 3px 1px rgb(0 0 6 / 7%), 0 2px 6px 2px rgb(0 0 6 / 3%) !important;
+    }
+    & > input:not(:checked):not(:disabled):not([aria-readonly="true"]):hover + :is(._12v7fda7, ._12v7fda8) {
+      background: color-mix(in srgb, var(--select-fg) 7%, transparent) !important;
+    }
+    & > input:focus-visible + :is(._12v7fda7, ._12v7fda8) {
+      outline: 2px solid var(--select-accent) !important;
+      outline-offset: -2px !important;
+    }
+    & > input:is(:disabled, [aria-disabled="true"], [aria-readonly="true"]) + :is(._12v7fda7, ._12v7fda8) {
+      opacity: .4 !important;
+      box-shadow: none !important;
+    }
+    /* Separators disappear next to the raised selection, as in AdwToggleGroup. */
+    & + ._12v7fda6::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 1px;
+      background: var(--color-border);
+      pointer-events: none;
+    }
+    &:has(> input:checked)::after,
+    &:has(> input:checked) + ._12v7fda6::after { opacity: 0; }
+  }
+}
+
+html[data-select-adwaita] :is(
+  [class*="pages_panel_row--pageRowContainer--"] > button[aria-current="page"],
+  [class*="legacy_pages_panel--pageRowActive--"]
+) {
+  background: var(--color-bg-selected) !important;
+  color: var(--select-accent) !important;
+  border-radius: 9px !important;
+  & [class*="legacy_pages_panel--renameableNodeText--"] { color: inherit !important; }
+}
+
+/* Keep the original menu hit areas and inset content. Both legacy dropdowns
+   and FPL menus consume brand tokens for their own selected paint. */
+html[data-select-adwaita] :is(
+  [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
+  [role="option"], [class*="base--_optionBase--"]
+) {
+  --color-bg-brand: var(--color-bg-menu-selected) !important;
+  --color-bg-brand-hover: var(--color-bg-menu-selected-hover) !important;
+  --color-bg-brand-pressed: var(--color-bg-menu-selected-pressed) !important;
+  --color-text-onbrand: var(--select-accent) !important;
+  --color-icon-onbrand: var(--select-accent) !important;
+}
+
+/* Table cells have their own swatch/opacity layout, outside the inspector. */
+html[data-select-adwaita] input[class*="variables_modal_value_input--colorInput--"] {
+  padding-inline-start: 8px !important;
+}
+
+html[data-select-adwaita-home],
+html[data-select-adwaita-home] :is(body, .figma-light, .figma-dark, [data-preferred-theme], [data-editor-theme]) {
+  --color-bg: var(--select-bg) !important;
+  --color-bg-secondary: var(--select-sidebar) !important;
+}
+
+html[data-select-adwaita-home] body {
+  background-color: var(--select-bg) !important;
+  color: var(--select-fg) !important;
+  font-family: var(--select-font) !important;
+  & :is(nav, [role="navigation"], [data-testid="sidebar"], [class*="file_browser_sidebar--"], [class*="sidebar--sidebar--"]) {
+    background-color: var(--select-sidebar) !important;
+    color: var(--select-fg) !important;
+  }
+  & :where(button, [role="button"], [role="tab"], input:not([type="checkbox"]):not([type="radio"]), select) {
+    font-family: var(--select-font) !important;
+    border-radius: 9px !important;
+  }
+  & [class*="sidebar_row--sidebarRowContainer--"][aria-current="page"] {
+    background: transparent !important;
+  }
+  & [class*="sidebar_row--sidebarRowSelected--"] {
+    background: var(--color-bg-selected) !important;
+    color: var(--select-accent) !important;
+    border-radius: 9px !important;
+  }
+  & [class*="sidebar_row--sidebarRowContainer--"]:focus-visible {
+    outline: none !important;
+    & > [class*="sidebar_row--sidebarRow--"] {
+      outline: 2px solid var(--select-accent) !important;
+      outline-offset: -2px !important;
+    }
+  }
+  & :is([data-testid="file-browser"], [data-testid="file-browser-content"], [class*="file_browser--content--"], [class*="file_browser--fileBrowser--"]) {
+    background-color: var(--select-bg) !important;
+    color: var(--select-fg) !important;
+  }
+  & :is([class*="avatar"], [data-testid*="avatar"]) { border-radius: 50% !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-select-adwaita] :is(button, input, textarea, select, [role="button"], [role="tab"]) {
+    transition: none !important;
+  }
+}

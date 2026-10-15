@@ -57,6 +57,10 @@ Application::Application() {
     gtk_icon_theme_add_resource_path(gtk_icon_theme_get_for_display(gdk_display_get_default()), "/io/github/doromiert/FigmaGtk/icons");
     GtkCssProvider* provider = gtk_css_provider_new();
     gtk_css_provider_load_from_string(provider,
+      ".tab-switcher { background: var(--popover-bg-color); color: var(--popover-fg-color); border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 24%); }"
+      ".tab-switcher flowbox { background: transparent; }"
+      ".tab-switcher flowboxchild { border-radius: 12px; padding: 6px; }"
+      ".tab-switcher .thumbnail { border-radius: 7px; background: var(--view-bg-color); box-shadow: 0 0 0 1px rgb(0 0 0 / 12%); }"
       ".workspace-tabs .document-tab { min-width: 180px; min-height: 34px; border-radius: 9px; font-weight: normal; }"
       ".zane-bubble { background-color: var(--popover-bg-color); color: var(--popover-fg-color); padding: 12px; border-radius: 12px; box-shadow: 0 2px 8px rgb(0 0 0 / 15%); }"
       ".workspace-tabs .document-tab.hovering { background-color: color-mix(in srgb, currentColor 7%, transparent); }"
@@ -343,7 +347,69 @@ Window::Window(Application& application, bool account) : app(application), zane_
   adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(toolbar_), workspace->create_pages(content_));
   adw_tab_overview_set_child(overview, toolbar_);
   root_ = workspace->create_root(GTK_WIDGET(overview));
-  toasts = ADW_TOAST_OVERLAY(adw_toast_overlay_new()); adw_toast_overlay_set_child(toasts, root_);
+  auto* switcher_host = gtk_overlay_new(); gtk_overlay_set_child(GTK_OVERLAY(switcher_host), root_);
+  tab_switcher_ = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_add_css_class(tab_switcher_, "tab-switcher");
+  auto* switcher_clamp = adw_clamp_new(); adw_clamp_set_maximum_size(ADW_CLAMP(switcher_clamp), 560); adw_clamp_set_tightening_threshold(ADW_CLAMP(switcher_clamp), 560);
+  adw_clamp_set_child(ADW_CLAMP(switcher_clamp), tab_switcher_); gtk_widget_set_valign(switcher_clamp, GTK_ALIGN_CENTER);
+  for (auto setter : {gtk_widget_set_margin_start, gtk_widget_set_margin_end, gtk_widget_set_margin_top, gtk_widget_set_margin_bottom}) setter(switcher_clamp, 24);
+  gtk_widget_set_size_request(tab_switcher_, 280, -1);
+  auto* switcher_scroll = gtk_scrolled_window_new();
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(switcher_scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(switcher_scroll), 360);
+  gtk_scrolled_window_set_propagate_natural_height(GTK_SCROLLED_WINDOW(switcher_scroll), true);
+  tab_switch_grid_ = GTK_FLOW_BOX(gtk_flow_box_new());
+  gtk_flow_box_set_homogeneous(tab_switch_grid_, true);
+  gtk_flow_box_set_min_children_per_line(tab_switch_grid_, 1); gtk_flow_box_set_max_children_per_line(tab_switch_grid_, 3);
+  gtk_flow_box_set_row_spacing(tab_switch_grid_, 8); gtk_flow_box_set_column_spacing(tab_switch_grid_, 8);
+  gtk_flow_box_set_selection_mode(tab_switch_grid_, GTK_SELECTION_SINGLE);
+  gtk_flow_box_set_activate_on_single_click(tab_switch_grid_, true);
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(switcher_scroll), GTK_WIDGET(tab_switch_grid_));
+  gtk_box_append(GTK_BOX(tab_switcher_), switcher_scroll);
+  gtk_overlay_add_overlay(GTK_OVERLAY(switcher_host), switcher_clamp);
+  g_object_bind_property(tab_switcher_, "visible", switcher_clamp, "visible", G_BINDING_SYNC_CREATE); gtk_widget_set_visible(tab_switcher_, false);
+  g_object_set_data(G_OBJECT(window), "tab-switcher", tab_switcher_);
+  g_object_set_data(G_OBJECT(window), "tab-switcher-grid", tab_switch_grid_);
+  g_signal_connect(tab_switch_grid_, "child-activated", G_CALLBACK(+[](GtkFlowBox*, GtkFlowBoxChild* child, Window* self) {
+    self->tab_switch_index_ = gtk_flow_box_child_get_index(child); self->finish_tab_cycle(true);
+  }), this);
+  auto* switcher_keys = gtk_event_controller_key_new();
+  gtk_event_controller_set_propagation_phase(switcher_keys, GTK_PHASE_CAPTURE);
+  g_signal_connect(switcher_keys, "key-pressed", G_CALLBACK(+[](GtkEventControllerKey*, guint key, guint, GdkModifierType state, Window* self) -> gboolean {
+    if (adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(self->window))) return false;
+    if ((state & GDK_CONTROL_MASK) && !(state & (GDK_ALT_MASK | GDK_SUPER_MASK)) && (key == GDK_KEY_Tab || key == GDK_KEY_ISO_Left_Tab)) {
+      self->cycle_tabs((state & GDK_SHIFT_MASK) || key == GDK_KEY_ISO_Left_Tab ? -1 : 1); return true;
+    }
+    if (!gtk_widget_get_visible(self->tab_switcher_)) return false;
+    if (key == GDK_KEY_Escape) self->finish_tab_cycle(false);
+    else if (key == GDK_KEY_Return || key == GDK_KEY_KP_Enter) self->finish_tab_cycle(true);
+    else if (key == GDK_KEY_Left) self->cycle_tabs(-1);
+    else if (key == GDK_KEY_Right) self->cycle_tabs(1);
+    else if (key == GDK_KEY_Up || key == GDK_KEY_Down) {
+      const int tile_width = gtk_widget_get_width(GTK_WIDGET(gtk_flow_box_get_child_at_index(self->tab_switch_grid_, 0)));
+      const int columns = std::max(1, (gtk_widget_get_width(GTK_WIDGET(self->tab_switch_grid_))+8)/(tile_width+8));
+      self->cycle_tabs(key == GDK_KEY_Up ? -columns : columns);
+    }
+    return true;
+  }), this);
+  g_signal_connect(switcher_keys, "key-released", G_CALLBACK(+[](GtkEventControllerKey*, guint key, guint, GdkModifierType, Window* self) {
+    if (key == GDK_KEY_Control_L || key == GDK_KEY_Control_R) self->finish_tab_cycle(true);
+  }), this);
+  gtk_widget_add_controller(GTK_WIDGET(window), switcher_keys);
+  g_object_set_data(G_OBJECT(window), "tab-switcher-keys", switcher_keys);
+  g_signal_connect(window, "notify::is-active", G_CALLBACK(+[](GObject*, GParamSpec*, Window* self) {
+    if (!gtk_window_is_active(self->window)) self->finish_tab_cycle(false);
+  }), this);
+  auto* switcher_outside = gtk_gesture_click_new();
+  gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(switcher_outside), GTK_PHASE_CAPTURE);
+  g_signal_connect(switcher_outside, "pressed", G_CALLBACK(+[](GtkGestureClick*, int, double x, double y, Window* self) {
+    if (!gtk_widget_get_visible(self->tab_switcher_)) return;
+    auto* picked = gtk_widget_pick(GTK_WIDGET(self->window), x, y, GTK_PICK_DEFAULT);
+    for (auto* node = picked; node; node = gtk_widget_get_parent(node)) if (node == self->tab_switcher_) return;
+    self->finish_tab_cycle(false);
+  }), this);
+  gtk_widget_add_controller(GTK_WIDGET(window), GTK_EVENT_CONTROLLER(switcher_outside));
+  toasts = ADW_TOAST_OVERLAY(adw_toast_overlay_new()); adw_toast_overlay_set_child(toasts, switcher_host);
   adw_application_window_set_content(ADW_APPLICATION_WINDOW(window), GTK_WIDGET(toasts));
   AdwBreakpoint* breakpoint = adw_breakpoint_new(adw_breakpoint_condition_parse("max-width: 600sp"));
   GValue value = G_VALUE_INIT;
@@ -458,6 +524,13 @@ CefRefPtr<Browser> Window::popup(const std::string& url) {
 void Window::update() {
   if (destroyed) return;
   auto browser = current();
+  std::erase_if(tab_mru_, [&](Browser* tab) {
+    return std::none_of(browsers_.begin(), browsers_.end(), [&](const auto& b) { return b.get() == tab && !b->closing && !b->is_auth_popup; });
+  });
+  if (browser && !browser->closing && !browser->is_auth_popup && (tab_mru_.empty() || tab_mru_.front() != browser.get())) {
+    std::erase(tab_mru_, browser.get()); tab_mru_.insert(tab_mru_.begin(), browser.get());
+  }
+  if (!tab_switch_order_.empty() && (browser != tab_switch_origin_ || std::any_of(tab_switch_order_.begin(), tab_switch_order_.end(), [this](const auto& b) { return b->closing || b->owner() != this; }))) finish_tab_cycle(false);
   const char* title = browser && !browser->is_home ? browser->name.c_str() : "Select for Figma";
   adw_window_title_set_title(title_, title); gtk_window_set_title(window, zane_account ? "Zane Account — Select for Figma" : title);
   adw_window_title_set_subtitle(title_, browser && browser->loading ? "Loading…" : "");
@@ -550,6 +623,63 @@ void Window::close() {
   if (browsers_.empty()) { destroyed = true; gtk_window_destroy(window); }
 }
 void Window::toast(const std::string& message) { if (!destroyed) adw_toast_overlay_add_toast(toasts, adw_toast_new(message.c_str())); }
+void Window::cycle_tabs(int direction) {
+  if (closing || destroyed) return;
+  if (tab_switch_order_.empty()) {
+    if (home_browser_ && !home_browser_->closing) tab_switch_order_.push_back(home_browser_);
+    for (int i = 0; i < adw_tab_view_get_n_pages(tabs); ++i) {
+      auto* tab = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(tabs, i))), "browser"));
+      if (tab && !tab->closing) tab_switch_order_.push_back(tab);
+    }
+    if (tab_switch_order_.size() < 2) { tab_switch_order_.clear(); return; }
+    // Freeze recency for this gesture; highlighting must not reorder the list.
+    if (app.state.tab_switcher_mru) std::stable_sort(tab_switch_order_.begin(), tab_switch_order_.end(), [this](const auto& a, const auto& b) {
+      return std::find(tab_mru_.begin(), tab_mru_.end(), a.get()) < std::find(tab_mru_.begin(), tab_mru_.end(), b.get());
+    });
+    tab_switch_origin_ = current();
+    auto selected = std::find(tab_switch_order_.begin(), tab_switch_order_.end(), tab_switch_origin_);
+    tab_switch_index_ = selected == tab_switch_order_.end() ? 0 : selected-tab_switch_order_.begin();
+    gtk_flow_box_remove_all(tab_switch_grid_);
+    auto* scroll = GTK_SCROLLED_WINDOW(gtk_widget_get_ancestor(GTK_WIDGET(tab_switch_grid_), GTK_TYPE_SCROLLED_WINDOW));
+    gtk_scrolled_window_set_max_content_height(scroll, std::clamp(gtk_widget_get_height(GTK_WIDGET(window))-160, 140, 360));
+    for (const auto& tab : tab_switch_order_) {
+      auto* tile = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+      gtk_box_append(GTK_BOX(tile), WorkspaceTabs::thumbnail(tab, 160, 100));
+      auto* label = gtk_label_new(tab->is_home ? "Home" : tab->name.c_str());
+      gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END); gtk_label_set_max_width_chars(GTK_LABEL(label), 18);
+      gtk_box_append(GTK_BOX(tile), label); gtk_flow_box_append(tab_switch_grid_, tile);
+      gtk_widget_set_tooltip_text(gtk_widget_get_parent(tile), tab->is_home ? "Home" : tab->name.c_str());
+    }
+    workspace->show_overview(false); gtk_widget_set_visible(tab_switcher_, true);
+  }
+  const int count = tab_switch_order_.size();
+  tab_switch_index_ = (static_cast<int>(tab_switch_index_)+direction%count+count)%count;
+  auto* child = gtk_flow_box_get_child_at_index(tab_switch_grid_, tab_switch_index_);
+  gtk_flow_box_select_child(tab_switch_grid_, child); gtk_widget_grab_focus(GTK_WIDGET(child));
+  // Wait for new tiles to be allocated before revealing the selected preview.
+  if (tab_switch_scroll_tick_) gtk_widget_remove_tick_callback(GTK_WIDGET(tab_switch_grid_), tab_switch_scroll_tick_);
+  tab_switch_scroll_tick_ = gtk_widget_add_tick_callback(GTK_WIDGET(tab_switch_grid_), +[](GtkWidget* grid, GdkFrameClock*, gpointer data) -> gboolean {
+    auto* self = static_cast<Window*>(data);
+    auto* child = GTK_WIDGET(gtk_flow_box_get_child_at_index(self->tab_switch_grid_, self->tab_switch_index_));
+    if (gtk_widget_get_height(child) == 0) return G_SOURCE_CONTINUE;
+    graphene_rect_t bounds;
+    if (gtk_widget_compute_bounds(child, grid, &bounds)) {
+      auto* scroll = GTK_SCROLLED_WINDOW(gtk_widget_get_ancestor(grid, GTK_TYPE_SCROLLED_WINDOW));
+      gtk_adjustment_clamp_page(gtk_scrolled_window_get_vadjustment(scroll), bounds.origin.y, bounds.origin.y+bounds.size.height);
+    }
+    self->tab_switch_scroll_tick_ = 0; return G_SOURCE_REMOVE;
+  }, this, nullptr);
+}
+void Window::finish_tab_cycle(bool activate) {
+  if (tab_switch_order_.empty()) return;
+  auto selected = tab_switch_order_[tab_switch_index_];
+  tab_switch_order_.clear(); tab_switch_origin_ = nullptr;
+  if (tab_switch_scroll_tick_) { gtk_widget_remove_tick_callback(GTK_WIDGET(tab_switch_grid_), tab_switch_scroll_tick_); tab_switch_scroll_tick_ = 0; }
+  gtk_widget_set_visible(tab_switcher_, false);
+  if (closing || destroyed) return;
+  if (activate && !selected->closing && selected->owner() == this) workspace->activate(selected);
+  else if (auto browser = current()) gtk_widget_grab_focus(browser->surface());
+}
 void Window::native_home() {
   if (!home_browser_) rebuild_home();
   if (home_browser_) gtk_stack_set_visible_child_name(GTK_STACK(content_), "home");
@@ -685,8 +815,29 @@ void Window::show_preferences() {
     self->app.apply_appearance(); self->app.state.save();
   })), this);
   adw_preferences_group_add(ADW_PREFERENCES_GROUP(appearance), style);
+  GtkWidget* editor_theme = adw_switch_row_new();
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_theme), "Adwaita Editor Theme");
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(editor_theme), "GNOME styling for Figma’s homepage, panels and controls, inspired by Rnote");
+  adw_switch_row_set_active(ADW_SWITCH_ROW(editor_theme), app.state.adwaita_editor);
+  g_signal_connect(editor_theme, "notify::active", G_CALLBACK(+[](AdwSwitchRow* row, GParamSpec*, Window* self) {
+    self->app.state.adwaita_editor = adw_switch_row_get_active(row);
+    for (auto& window : self->app.windows) for (auto& browser : window->browsers_) browser->refresh_theme();
+    self->app.state.save();
+  }), this);
+  adw_preferences_group_add(ADW_PREFERENCES_GROUP(appearance), editor_theme);
   GtkWidget* behavior = adw_preferences_group_new(); adw_preferences_group_set_title(ADW_PREFERENCES_GROUP(behavior), "Workspace");
   adw_preferences_page_add(ADW_PREFERENCES_PAGE(page), ADW_PREFERENCES_GROUP(behavior));
+  GtkWidget* tab_order = adw_combo_row_new();
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(tab_order), "Ctrl+Tab Order");
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(tab_order), "Include Home when cycling through tabs");
+  const char* tab_orders[] = {"Tab position", "Most recently used", nullptr};
+  auto* tab_order_model = gtk_string_list_new(tab_orders);
+  adw_combo_row_set_model(ADW_COMBO_ROW(tab_order), G_LIST_MODEL(tab_order_model)); g_object_unref(tab_order_model);
+  adw_combo_row_set_selected(ADW_COMBO_ROW(tab_order), app.state.tab_switcher_mru ? 1 : 0);
+  g_signal_connect(tab_order, "notify::selected", G_CALLBACK(+[](AdwComboRow* row, GParamSpec*, Window* self) {
+    self->app.state.tab_switcher_mru = adw_combo_row_get_selected(row) == 1; self->app.state.save();
+  }), this);
+  adw_preferences_group_add(ADW_PREFERENCES_GROUP(behavior), tab_order);
   GtkWidget* restore = adw_switch_row_new(); adw_preferences_row_set_title(ADW_PREFERENCES_ROW(restore), "Restore Open Files");
   adw_action_row_set_subtitle(ADW_ACTION_ROW(restore), "Reopen document tabs when the app starts");
   adw_switch_row_set_active(ADW_SWITCH_ROW(restore), app.state.restore_session);
@@ -955,7 +1106,7 @@ void Window::show_shortcuts() {
     {"New Window", "win.new-window"}, {"Close Tab", "win.close-tab"}, {"Close Window", "win.close-window"},
     {"Tab Overview", "win.overview"}});
   auto* tab_group = GTK_SHORTCUTS_GROUP(g_object_new(GTK_TYPE_SHORTCUTS_GROUP, "title", "Switch Tabs", nullptr));
-  for (const auto& [title, accelerator] : {std::pair{"Next Tab", "<Primary>Page_Down"}, {"Previous Tab", "<Primary>Page_Up"}})
+  for (const auto& [title, accelerator] : {std::pair{"Cycle Tabs", "<Primary>Tab"}, {"Cycle Tabs Backward", "<Primary><Shift>Tab"}, {"Next Tab", "<Primary>Page_Down"}, {"Previous Tab", "<Primary>Page_Up"}})
     gtk_shortcuts_group_add_shortcut(tab_group, GTK_SHORTCUTS_SHORTCUT(g_object_new(GTK_TYPE_SHORTCUTS_SHORTCUT,
       "title", title, "accelerator", accelerator, nullptr)));
   gtk_shortcuts_section_add_group(page, tab_group);

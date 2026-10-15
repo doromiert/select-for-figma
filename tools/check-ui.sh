@@ -134,6 +134,8 @@ FIGMA_GTK_TEST_OVERVIEW_NEW_TAB=1 run_check overview-new-tab --self-test
 FIGMA_GTK_TEST_DOWNLOADS=1 run_check downloads --self-test
 FIGMA_GTK_TEST_HOME_CARD=1 run_check home --self-test
 FIGMA_GTK_TEST_TAB_SLIDE=1 run_check tab-slide --render-test
+FIGMA_GTK_TEST_TAB_SWITCHER=1 run_check tab-switcher --render-test
+FIGMA_GTK_TEST_EDITOR_THEME=1 run_check editor-theme --render-test
 FIGMA_GTK_TEST_RENDER_OVERVIEW=1 run_check overview --render-test
 FIGMA_GTK_TEST_RENDER_OVERVIEW=1 FIGMA_GTK_TEST_RENDER_GROUPS=1 run_check group-previews --render-test
 FIGMA_GTK_TEST_RENDER_OVERVIEW=1 FIGMA_GTK_TEST_RENDER_GROUPS=1 FIGMA_GTK_TEST_DRAWER_LAYOUT=1 run_check drawer-layout --render-test

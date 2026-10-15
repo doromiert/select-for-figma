@@ -61,10 +61,12 @@ void State::load() {
   if (!node || !JSON_NODE_HOLDS_OBJECT(node)) { g_object_unref(parser); return; }
   JsonObject* root = json_node_get_object(node);
   restore_session = boolean(root, "restore-session", true);
+  tab_switcher_mru = boolean(root, "tab-switcher-mru", false);
   notifications = boolean(root, "notifications", true);
   local_fonts = boolean(root, "local-fonts", true);
   keepassxc_paired = boolean(root, "keepassxc-paired", false);
   appearance = text(root, "appearance", "system");
+  adwaita_editor = boolean(root, "adwaita-editor", true);
   const auto old_model = text(root, "zane-model"), old_effort = text(root, "zane-effort");
   zane_chat_model = text(root, "zane-chat-model", old_model.c_str());
   zane_work_model = text(root, "zane-work-model", old_model.c_str());
@@ -128,6 +130,7 @@ void State::save() const {
   JsonObject* root = json_object_new();
   json_object_set_int_member(root, "version", 1);
   json_object_set_boolean_member(root, "restore-session", restore_session);
+  json_object_set_boolean_member(root, "tab-switcher-mru", tab_switcher_mru);
   json_object_set_boolean_member(root, "notifications", notifications);
   json_object_set_boolean_member(root, "local-fonts", local_fonts);
   json_object_set_boolean_member(root, "keepassxc-paired", keepassxc_paired);
@@ -138,6 +141,7 @@ void State::save() const {
   json_object_set_boolean_member(root, "zane-account-presence", zane_account_presence);
   json_object_set_boolean_member(root, "zane-auto-edit-access", zane_auto_edit_access);
   json_object_set_string_member(root, "appearance", appearance.c_str());
+  json_object_set_boolean_member(root, "adwaita-editor", adwaita_editor);
   json_object_set_string_member(root, "download-folder", download_folder.c_str());
   json_object_set_int_member(root, "width", width);
   json_object_set_int_member(root, "height", height);
