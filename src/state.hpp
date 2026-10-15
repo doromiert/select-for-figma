@@ -8,6 +8,7 @@ struct Export { std::string path; std::string source; std::string title; std::st
 class State {
 public:
   explicit State(std::string directory = "");
+  static bool migrate_legacy_directory(const std::string& data_home);
   bool restore_session = true;
   bool tab_switcher_mru = false;
   bool notifications = true;

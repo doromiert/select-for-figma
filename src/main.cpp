@@ -89,7 +89,6 @@ int main(int argc, char** argv) {
   const int subprocess = CefExecuteProcess(args, engine, nullptr);
   if (subprocess >= 0) return subprocess;
 
-  Application app;
   gboolean software = false, self_test = false, render_test = false, auth_test = false;
   char* screenshot = nullptr;
   const GOptionEntry options[] = {
@@ -104,17 +103,30 @@ int main(int argc, char** argv) {
   GError* error = nullptr;
   if (!g_option_context_parse(context, &argc, &argv, &error)) { g_printerr("%s\n", error->message); g_error_free(error); return 1; }
   g_option_context_free(context);
+  if (!self_test && !render_test && !auth_test) {
+    // Older processes must release their Chromium profile before it moves.
+    if (auto* bus = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr)) {
+      auto* reply = g_dbus_connection_call_sync(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
+        g_variant_new("(s)", "io.github.doromiert.FigmaGtk"), G_VARIANT_TYPE("(b)"), G_DBUS_CALL_FLAGS_NONE, 3000, nullptr, nullptr);
+      gboolean running = false;
+      if (reply) { g_variant_get(reply, "(b)", &running); g_variant_unref(reply); }
+      g_object_unref(bus);
+      if (running) { g_printerr("Close the older Select for Figma instance before launching this version.\n"); return 1; }
+    }
+    if (!State::migrate_legacy_directory(g_get_user_data_dir())) { g_printerr("Could not migrate saved Select for Figma data.\n"); return 1; }
+  }
+  Application app;
   app.software = software; app.smoke_test = self_test; app.render_test = render_test;
   app.auth_test = auth_test;
   engine->diagnostic = self_test || render_test || auth_test;
   if (screenshot) { app.screenshot = screenshot; g_free(screenshot); }
   if (self_test || render_test || auth_test) {
-    g_application_set_application_id(G_APPLICATION(app.gtk_app), "io.github.doromiert.FigmaGtk.Diagnostic");
-    char* temporary = g_strdup("/tmp/figma-gtk-diagnostic-XXXXXX");
+    g_application_set_application_id(G_APPLICATION(app.gtk_app), "io.github.doromiert.SelectForFigma.Diagnostic");
+    char* temporary = g_strdup("/tmp/select-for-figma-diagnostic-XXXXXX");
     if (!g_mkdtemp(temporary)) { g_free(temporary); return 1; }
     app.state = State(temporary); g_free(temporary);
     app.state.local_fonts = false;
-    if (g_getenv("FIGMA_GTK_TEST_NARROW")) app.state.width = 480;
+    if (g_getenv("SELECT_FOR_FIGMA_TEST_NARROW")) app.state.width = 480;
     g_print("Diagnostic data: %s\n", app.state.directory().c_str());
   }
 
@@ -167,23 +179,23 @@ int main(int argc, char** argv) {
     app.state.recent.clear();
     Window* window = app.new_window();
     if (auth_test) {
-      const char* fixture = g_getenv("FIGMA_GTK_AUTH_TEST_URL");
+      const char* fixture = g_getenv("SELECT_FOR_FIGMA_AUTH_TEST_URL");
       if (!fixture || std::string(fixture).rfind("http://127.0.0.1:", 0) != 0) {
-        g_printerr("Auth diagnostic requires a local FIGMA_GTK_AUTH_TEST_URL\n");
+        g_printerr("Auth diagnostic requires a local SELECT_FOR_FIGMA_AUTH_TEST_URL\n");
         app.diagnostic_failed = true; window->close();
       } else {
         window->current()->navigate(fixture);
-        if (g_getenv("FIGMA_GTK_TEST_ZANE_ACCOUNT")) {
+        if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACCOUNT")) {
           auto* account=app.zane_account_window(false);
           if (account) { std::string url=fixture; url.replace(url.find("role=main"),9,"role=zane"); account->current()->navigate(url); }
           gtk_window_present(window->window);
           g_timeout_add(5500,+[](gpointer p)->gboolean {
             auto* window=static_cast<Window*>(p); auto browser=window->current();
-            if (browser && browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("console.info('select-zane-account-isolation:'+(document.cookie.includes('presence_role=main')?'PASS':'FAIL'))", "figma-gtk://diagnostic",1);
+            if (browser && browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("console.info('select-zane-account-isolation:'+(document.cookie.includes('presence_role=main')?'PASS':'FAIL'))", "select-for-figma://diagnostic",1);
             return G_SOURCE_REMOVE;
           },window);
         }
-        if (g_getenv("FIGMA_GTK_TEST_NOTIFICATIONS")) {
+        if (g_getenv("SELECT_FOR_FIGMA_TEST_NOTIFICATIONS")) {
           GNotification* notification = g_notification_new("Native notification diagnostic");
           g_notification_set_body(notification, "Private test bus only");
           g_application_send_notification(G_APPLICATION(app.gtk_app), "diagnostic", notification); g_object_unref(notification);
@@ -237,14 +249,14 @@ int main(int argc, char** argv) {
       g_timeout_add(100, +[](gpointer p) -> gboolean { static_cast<Window*>(p)->update(); return G_SOURCE_REMOVE; }, window);
     }
     if (render_test) {
-      if (g_getenv("FIGMA_GTK_TEST_DRAWER_LAYOUT")) gtk_window_set_default_size(window->window,1900,1000);
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_DRAWER_LAYOUT")) gtk_window_set_default_size(window->window,1900,1000);
       std::string html = R"HTML(<!doctype html><html><head><meta charset="utf-8"><title>Chromium Render Check</title><style>body{font:18px system-ui;margin:0;padding:48px;background:#fafafa;color:#222}canvas{width:320px;height:240px;border-radius:12px}input{font:inherit;padding:12px;margin:24px 0}p{max-width:600px;line-height:1.5}</style></head><body><h1>Chromium rendering check</h1><p id="status">Checking WebGL…</p><canvas id="canvas" width="320" height="240"></canvas><br><input placeholder="Input method check"><script>const c=document.querySelector('canvas'), gl=c.getContext('webgl2')||c.getContext('webgl');document.querySelector('#status').textContent=gl?'WebGL is available. This green canvas is rendered by Chromium.':'WebGL unavailable';if(gl){gl.clearColor(.18,.72,.40,1);gl.clear(gl.COLOR_BUFFER_BIT)}document.title=gl?'WebGL OK':'WebGL FAILED';</script></body></html>)HTML";
-      if (g_getenv("FIGMA_GTK_TEST_EDITOR_THEME")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_EDITOR_THEME")) {
         char* fixture = nullptr; gsize size;
         if (!g_file_get_contents("tools/editor-theme-fixture.html", &fixture, &size, nullptr)) return 1;
         html.assign(fixture, size); g_free(fixture);
       }
-      if (g_getenv("FIGMA_GTK_TEST_COPY")) html += R"HTML(<span id="copy-selection">Selected page text ✓</span><input id="copy-input"><button style="position:fixed;left:600px;top:300px;width:120px;height:60px" onclick="const el=document.querySelector('#copy-input');el.focus();el.select();document.execCommand('copy')">Copy fixture</button><script>
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_COPY")) html += R"HTML(<span id="copy-selection">Selected page text ✓</span><input id="copy-input"><button style="position:fixed;left:600px;top:300px;width:120px;height:60px" onclick="const el=document.querySelector('#copy-input');el.focus();el.select();document.execCommand('copy')">Copy fixture</button><script>
         window.copyMode='';
         document.addEventListener('copy',e=>{if(copyMode==='rich'){e.clipboardData.setData('text/plain','Figma objects ✓');e.clipboardData.setData('text/html','<b>Figma objects ✓</b>');e.clipboardData.setData('application/x-figma','fixture-objects');e.preventDefault();e.stopImmediatePropagation();}});
         window.copyStage=async stage=>{
@@ -258,19 +270,19 @@ int main(int argc, char** argv) {
           if(stage===6){const png=await new Promise(resolve=>document.querySelector('canvas').toBlob(resolve));const blobs={'text/plain':new Blob(['Async rich clipboard ✓'],{type:'text/plain'}),'text/html':new Blob(['<i>Async rich clipboard ✓</i>'],{type:'text/html'}),'image/png':png};await navigator.clipboard.write([{types:Object.keys(blobs),getType:async type=>blobs[type]}]);}
         };
         </script>)HTML";
-      if (g_getenv("FIGMA_GTK_TEST_ZANE")) html += R"HTML(<div data-testid="comment-message">Alice: Please fix the alignment.</div><div data-testid="comment-message">Bob: I agree with Alice.</div><script>document.addEventListener('keydown',e=>{if(e.key==='/'&&!window.nativeSpeechFixture){let input=document.createElement('input');input.dataset.testid='cursor-chat-input';input.placeholder='Cursor chat';document.body.append(input);input.focus();}});</script>)HTML";
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_SITE_HOOKS")) html += R"HTML(<script>console.info=()=>{};document.addEventListener('keydown',e=>e.stopImmediatePropagation(),true);document.addEventListener('input',e=>e.stopImmediatePropagation(),true);</script>)HTML";
-      if (g_getenv("FIGMA_GTK_TEST_ZANE")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE")) html += R"HTML(<div data-testid="comment-message">Alice: Please fix the alignment.</div><div data-testid="comment-message">Bob: I agree with Alice.</div><script>document.addEventListener('keydown',e=>{if(e.key==='/'&&!window.nativeSpeechFixture){let input=document.createElement('input');input.dataset.testid='cursor-chat-input';input.placeholder='Cursor chat';document.body.append(input);input.focus();}});</script>)HTML";
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_SITE_HOOKS")) html += R"HTML(<script>console.info=()=>{};document.addEventListener('keydown',e=>e.stopImmediatePropagation(),true);document.addEventListener('input',e=>e.stopImmediatePropagation(),true);</script>)HTML";
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE")) {
         char* fixture = nullptr; gsize size;
         if (g_file_get_contents("tools/native-cursor-fixture.js", &fixture, &size, nullptr)) {
           std::string source(fixture,size);g_free(fixture);
-          if(g_getenv("FIGMA_GTK_TEST_ZANE_CANVAS_SCRIPT")) {const std::string marker="select-reference-make-node";const auto at=source.find(marker);if(at!=std::string::npos) source.replace(at,marker.size(),"removed-transaction-binding");}
+          if(g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CANVAS_SCRIPT")) {const std::string marker="select-reference-make-node";const auto at=source.find(marker);if(at!=std::string::npos) source.replace(at,marker.size(),"removed-transaction-binding");}
           html += "<script>"+source+"</script>";
         }
         else { g_printerr("Native cursor fixture missing\n"); app.diagnostic_failed = true; }
       }
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_NATIVE")) html += R"HTML(<textarea id="canvas-carrier" aria-hidden="true" style="position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0"></textarea><script>window.nativeSpeechFixture=true;document.querySelector('#canvas-carrier').addEventListener('beforeinput',e=>e.preventDefault());</script>)HTML";
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")) html += R"HTML(<script>
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_NATIVE")) html += R"HTML(<textarea id="canvas-carrier" aria-hidden="true" style="position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0"></textarea><script>window.nativeSpeechFixture=true;document.querySelector('#canvas-carrier').addEventListener('beforeinput',e=>e.preventDefault());</script>)HTML";
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACTIONS")) html += R"HTML(<script>
         window.fixtureCanvasInput={down:false,up:false,moves:0,wheel:false,key:false};
         document.addEventListener('mousedown',e=>{if(e.isTrusted&&e.button===1)fixtureCanvasInput.down=true;});
         document.addEventListener('mouseup',e=>{if(e.isTrusted&&e.button===1)fixtureCanvasInput.up=true;});
@@ -281,7 +293,7 @@ int main(int argc, char** argv) {
       char* encoded = g_base64_encode(reinterpret_cast<const guchar*>(html.data()), html.size());
       const std::string address = std::string("data:text/html;base64,") + encoded;
       auto first = window->open(address); g_free(encoded);
-      if (g_getenv("FIGMA_GTK_TEST_TAB_SWITCHER")) g_timeout_add_full(G_PRIORITY_DEFAULT, 1500, +[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_TAB_SWITCHER")) g_timeout_add_full(G_PRIORITY_DEFAULT, 1500, +[](gpointer p) -> gboolean {
         auto first = *static_cast<CefRefPtr<Browser>*>(p); auto* window = first->owner();
         auto second = window->open(first->url+"#second", false, true);
         auto third = window->open(first->url+"#third", false, true);
@@ -360,7 +372,7 @@ int main(int argc, char** argv) {
         }, new SwitchTest{window, first, second, third}, +[](gpointer p) { delete static_cast<SwitchTest*>(p); });
         return G_SOURCE_REMOVE;
       }, new CefRefPtr<Browser>(first), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
-      if (g_getenv("FIGMA_GTK_TEST_EDITOR_THEME")) g_timeout_add_full(G_PRIORITY_DEFAULT, 2000, +[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_EDITOR_THEME")) g_timeout_add_full(G_PRIORITY_DEFAULT, 2000, +[](gpointer p) -> gboolean {
         struct ThemeTest { CefRefPtr<Browser> browser; int step = 0; };
         g_timeout_add_full(G_PRIORITY_DEFAULT, 500, +[](gpointer p) -> gboolean {
           auto* test = static_cast<ThemeTest*>(p); auto browser = test->browser; auto* window = browser->owner();
@@ -375,11 +387,11 @@ int main(int argc, char** argv) {
             case 0:
               window->app.state.appearance = "light"; window->app.apply_appearance(); break;
             case 1:
-              frame->ExecuteJavaScript("checkTheme('light')", "figma-gtk://diagnostic", 1);
+              frame->ExecuteJavaScript("checkTheme('light')", "select-for-figma://diagnostic", 1);
               window->app.take_screenshot(*window, window->app.screenshot+".light.png");
               window->app.state.appearance = "dark"; window->app.apply_appearance(); break;
             case 2:
-              frame->ExecuteJavaScript("checkTheme('dark'); if(themeResults.light.bg===themeResults.dark.bg) console.info('select-editor-theme:palette-change:FAIL'); else console.info('select-editor-theme:palette-change:PASS');", "figma-gtk://diagnostic", 1);
+              frame->ExecuteJavaScript("checkTheme('dark'); if(themeResults.light.bg===themeResults.dark.bg) console.info('select-editor-theme:palette-change:FAIL'); else console.info('select-editor-theme:palette-change:PASS');", "select-for-figma://diagnostic", 1);
               window->app.take_screenshot(*window, window->app.screenshot+".dark.png");
               window->show_preferences(); break;
             case 3: {
@@ -391,35 +403,35 @@ int main(int argc, char** argv) {
               adw_switch_row_set_active(ADW_SWITCH_ROW(toggle), false); adw_dialog_close(dialog); break;
             }
             case 4:
-              frame->ExecuteJavaScript("checkTheme('disabled')", "figma-gtk://diagnostic", 1);
+              frame->ExecuteJavaScript("checkTheme('disabled')", "select-for-figma://diagnostic", 1);
               window->app.take_screenshot(*window, window->app.screenshot+".disabled.png");
               window->app.state.adwaita_editor = true; browser->refresh_theme(); break;
             case 5:
-              frame->ExecuteJavaScript("checkTheme('restored'); homeFixture(true)", "figma-gtk://diagnostic", 1);
+              frame->ExecuteJavaScript("checkTheme('restored'); homeFixture(true)", "select-for-figma://diagnostic", 1);
               browser->url = "https://www.figma.com/files/recent"; browser->refresh_theme(); break;
             case 6:
-              frame->ExecuteJavaScript("checkHomeTheme()", "figma-gtk://diagnostic", 1);
+              frame->ExecuteJavaScript("checkHomeTheme()", "select-for-figma://diagnostic", 1);
               window->app.take_screenshot(*window, window->app.screenshot+".homepage.png");
               browser->url = "https://www.figma.com/login"; browser->refresh_theme(); break;
             case 7:
-              frame->ExecuteJavaScript("checkTheme('disabled'); homeFixture(false)", "figma-gtk://diagnostic", 1);
+              frame->ExecuteJavaScript("checkTheme('disabled'); homeFixture(false)", "select-for-figma://diagnostic", 1);
               browser->url = frame->GetURL(); browser->refresh_theme(); return G_SOURCE_REMOVE;
           }
           return G_SOURCE_CONTINUE;
         }, new ThemeTest{*static_cast<CefRefPtr<Browser>*>(p)}, +[](gpointer p) { delete static_cast<ThemeTest*>(p); });
         return G_SOURCE_REMOVE;
       }, new CefRefPtr<Browser>(first), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")) g_timeout_add_full(G_PRIORITY_DEFAULT,6800,+[](gpointer p)->gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACTIONS")) g_timeout_add_full(G_PRIORITY_DEFAULT,6800,+[](gpointer p)->gboolean {
         auto browser=*static_cast<CefRefPtr<Browser>*>(p);
         if(browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(R"JS((()=>{
           const input=window.fixtureCanvasInput,nodes=Object.values(window.fixtureNodes),paths=nodes.filter(node=>node.type==='VECTOR'&&node.fixtureNetwork);
           const inputs=input.down&&input.up&&input.moves>0&&input.wheel&&input.key;
           const copies=paths.length===3&&paths.every(node=>node.parentNode.guid!=='1:2')&&window.fixtureNodes['1:3'].characters==='Original design';
           console.info('select-zane-canvas-actions:'+JSON.stringify({input,paths:paths.length,copies})+':'+(inputs&&copies?'PASS':'FAIL'));
-        })())JS","figma-gtk://diagnostic",1);
+        })())JS","select-for-figma://diagnostic",1);
         return G_SOURCE_REMOVE;
       },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_CURSOR")) g_timeout_add_full(G_PRIORITY_DEFAULT,4200,+[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CURSOR")) g_timeout_add_full(G_PRIORITY_DEFAULT,4200,+[](gpointer p) -> gboolean {
         auto browser = *static_cast<CefRefPtr<Browser>*>(p);
         if (browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(R"JS((() => {
           const host=document.querySelector('#select-zane-native'), cursor=host?.firstElementChild;
@@ -452,10 +464,10 @@ int main(int argc, char** argv) {
               },550);
             }
           }));
-        })())JS", "figma-gtk://diagnostic", 1);
+        })())JS", "select-for-figma://diagnostic", 1);
         return G_SOURCE_REMOVE;
       },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_FOLLOWUP")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_FOLLOWUP")) {
         g_timeout_add_full(G_PRIORITY_DEFAULT,3500,+[](gpointer p)->gboolean {
           auto browser=*static_cast<CefRefPtr<Browser>*>(p);
           if (browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(R"JS((() => {
@@ -464,7 +476,7 @@ int main(int argc, char** argv) {
             window.__selectZane.nativeKey('Escape'); document.activeElement?.blur();
             window.__selectZane.nativeKey('/'); window.__selectZane.commit('also read the comments');
             window.__selectZane.nativeKey('Enter');
-          })())JS","figma-gtk://diagnostic",1);
+          })())JS","select-for-figma://diagnostic",1);
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
         g_timeout_add_full(G_PRIORITY_DEFAULT,5500,+[](gpointer p)->gboolean {
@@ -478,16 +490,16 @@ int main(int argc, char** argv) {
               window.__selectZane.nativeKey('/'); window.__selectZane.commit('read these comments too'); window.__selectZane.nativeKey('Enter');
               console.info('select-zane-followup:'+(hidden?'PASS':'FAIL'));
             },300);
-          })())JS","figma-gtk://diagnostic",1);
+          })())JS","select-for-figma://diagnostic",1);
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
         g_timeout_add_full(G_PRIORITY_DEFAULT,6300,+[](gpointer p)->gboolean {
           auto browser=*static_cast<CefRefPtr<Browser>*>(p);
-          if (browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("window.__selectZane.nativeKey('Escape'); window.__selectZane.nativeKey('/'); window.__selectZane.commit('hey zane read the comments'); window.__selectZane.nativeKey('Enter');","figma-gtk://diagnostic",1);
+          if (browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("window.__selectZane.nativeKey('Escape'); window.__selectZane.nativeKey('/'); window.__selectZane.commit('hey zane read the comments'); window.__selectZane.nativeKey('Enter');","select-for-figma://diagnostic",1);
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
       }
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_MODELS")) g_timeout_add(400, +[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_MODELS")) g_timeout_add(400, +[](gpointer p) -> gboolean {
         auto* window = static_cast<Window*>(p); window->show_preferences();
         g_timeout_add(80, +[](gpointer p) -> gboolean {
           auto* window = static_cast<Window*>(p); if (window->destroyed) return G_SOURCE_REMOVE;
@@ -516,25 +528,25 @@ int main(int argc, char** argv) {
           return G_SOURCE_REMOVE;
         }, window); return G_SOURCE_REMOVE;
       }, window);
-      if (g_getenv("FIGMA_GTK_TEST_CREATION_RACE")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_CREATION_RACE")) {
         // Reproduce navigation/reload before asynchronous OnAfterCreated.
         std::string stale = html; const auto color = stale.find(".18,.72,.40"); stale.replace(color,11,".20,.35,.85");
         char* data = g_base64_encode(reinterpret_cast<const guchar*>(stale.data()),stale.size());
         first->start(); first->navigate(std::string("data:text/html;base64,")+data); first->reload(); first->navigate(address); g_free(data);
       }
 
-      if (g_getenv("FIGMA_GTK_TEST_RENDER_STATE")) g_timeout_add_full(G_PRIORITY_DEFAULT,100,+[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_STATE")) g_timeout_add_full(G_PRIORITY_DEFAULT,100,+[](gpointer p) -> gboolean {
         auto b = *static_cast<CefRefPtr<Browser>*>(p); if (b->closing) return G_SOURCE_REMOVE;
         if (b->cef_browser()) { CefMouseEvent event; event.x = 64; event.y = 220; b->cef_browser()->GetHost()->SendMouseMoveEvent(event,false); b->cef_browser()->GetHost()->Invalidate(PET_VIEW); }
         return G_SOURCE_CONTINUE;
       },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
-      if (g_getenv("FIGMA_GTK_TEST_COPY")) g_timeout_add_full(G_PRIORITY_DEFAULT,1800,+[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_COPY")) g_timeout_add_full(G_PRIORITY_DEFAULT,1800,+[](gpointer p) -> gboolean {
         Clipboard::check_copy(**static_cast<CefRefPtr<Browser>*>(p)); return G_SOURCE_REMOVE;
       },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_NATIVE")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_NATIVE")) {
         g_timeout_add_full(G_PRIORITY_DEFAULT,1800,+[](gpointer p) -> gboolean {
           auto b = *static_cast<CefRefPtr<Browser>*>(p);
-          if (b->cef_browser()) b->cef_browser()->GetMainFrame()->ExecuteJavaScript("document.querySelector('input').focus(); window.__selectZane.nativeKey('/'); window.__selectZane.commit('hey zane form text');","figma-gtk://diagnostic",1);
+          if (b->cef_browser()) b->cef_browser()->GetMainFrame()->ExecuteJavaScript("document.querySelector('input').focus(); window.__selectZane.nativeKey('/'); window.__selectZane.commit('hey zane form text');","select-for-figma://diagnostic",1);
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
         g_timeout_add_full(G_PRIORITY_DEFAULT,2600,+[](gpointer p) -> gboolean {
@@ -544,12 +556,12 @@ int main(int argc, char** argv) {
           const bool quiet = bubble && !gtk_widget_get_visible(bubble);
           g_print("Form text does not wake Zane diagnostic: %s\n",quiet ? "PASS" : "FAIL"); if (!quiet && b->owner()) b->owner()->app.diagnostic_failed = true;
           b->OnAddressChange(b->cef_browser(),b->cef_browser()->GetMainFrame(),"https://www.figma.com/design/fixture");
-          b->cef_browser()->GetMainFrame()->ExecuteJavaScript("document.querySelector('#canvas-carrier').focus();","figma-gtk://diagnostic",1);
+          b->cef_browser()->GetMainFrame()->ExecuteJavaScript("document.querySelector('#canvas-carrier').focus();","select-for-figma://diagnostic",1);
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
         g_timeout_add_full(G_PRIORITY_DEFAULT,3000,+[](gpointer p) -> gboolean {
           auto b = *static_cast<CefRefPtr<Browser>*>(p); gtk_widget_grab_focus(b->surface());
-          if (g_getenv("FIGMA_GTK_TEST_ZANE_KEYBOARD")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_KEYBOARD")) {
             auto* window = b->owner(); graphene_rect_t bounds{};
             if (!window || !gtk_widget_compute_bounds(b->surface(), GTK_WIDGET(window->window), &bounds)) return G_SOURCE_REMOVE;
             double sx, sy; gtk_native_get_surface_transform(GTK_NATIVE(window->window), &sx, &sy);
@@ -570,17 +582,17 @@ int main(int argc, char** argv) {
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
       }
-      if (g_getenv("FIGMA_GTK_TEST_ZANE") && !g_getenv("FIGMA_GTK_TEST_ZANE_NATIVE")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE") && !g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_NATIVE")) {
         g_timeout_add_full(G_PRIORITY_DEFAULT,1800,+[](gpointer p) -> gboolean {
           auto browser = *static_cast<CefRefPtr<Browser>*>(p);
           if (browser->cef_browser()) {
             std::string wake="document.activeElement?.blur(); document.dispatchEvent(new KeyboardEvent('keydown',{key:'/',bubbles:true})); const chat=document.activeElement; chat.value='hey zane read the comments'; chat.dispatchEvent(new Event('input',{bubbles:true}));";
-            if(g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")) wake+="window.__selectZane.nativeKey('Enter');document.activeElement?.blur();";
-            browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(wake,"figma-gtk://diagnostic",1);
+            if(g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACTIONS")) wake+="window.__selectZane.nativeKey('Enter');document.activeElement?.blur();";
+            browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(wake,"select-for-figma://diagnostic",1);
           }
           return G_SOURCE_REMOVE;
         },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
-        if (g_getenv("FIGMA_GTK_TEST_ZANE_CANCEL") || g_getenv("FIGMA_GTK_TEST_ZANE_RECOVER")) {
+        if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CANCEL") || g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_RECOVER")) {
           g_timeout_add_full(G_PRIORITY_DEFAULT,3600,+[](gpointer p) -> gboolean {
             auto browser = *static_cast<CefRefPtr<Browser>*>(p); auto* window = browser->owner(); if (!window || window->destroyed) return G_SOURCE_REMOVE;
             auto* bubble = GTK_WIDGET(g_object_get_data(G_OBJECT(browser->widget()),"zane-bubble"));
@@ -588,7 +600,7 @@ int main(int argc, char** argv) {
             auto* entry = bubble ? GTK_WIDGET(g_object_get_data(G_OBJECT(bubble),"zane-entry")) : nullptr;
             auto* reply = bubble ? GTK_WIDGET(g_object_get_data(G_OBJECT(bubble),"zane-reply")) : nullptr;
             bool passed = entry && reply;
-            if (g_getenv("FIGMA_GTK_TEST_ZANE_CANCEL")) { passed &= stop && gtk_widget_get_visible(stop); if (stop) g_signal_emit_by_name(stop,"clicked"); passed &= reply && std::string(gtk_label_get_text(GTK_LABEL(reply))) == "Stopped."; }
+            if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CANCEL")) { passed &= stop && gtk_widget_get_visible(stop); if (stop) g_signal_emit_by_name(stop,"clicked"); passed &= reply && std::string(gtk_label_get_text(GTK_LABEL(reply))) == "Stopped."; }
             else passed &= reply && g_str_has_prefix(gtk_label_get_text(GTK_LABEL(reply)),"Sign in to Codex");
             g_print("Zane cancellation/recovery diagnostic: %s\n",passed ? "PASS" : "FAIL"); if (!passed) window->app.diagnostic_failed = true;
             if (entry) { gtk_editable_set_text(GTK_EDITABLE(entry),"read the comments"); g_signal_emit_by_name(entry,"activate"); }
@@ -596,7 +608,7 @@ int main(int argc, char** argv) {
           },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
         }
       }
-      if (g_getenv("FIGMA_GTK_TEST_RENDER_OVERVIEW") || g_getenv("FIGMA_GTK_TEST_TAB_SLIDE")) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_OVERVIEW") || g_getenv("SELECT_FOR_FIGMA_TEST_TAB_SLIDE")) {
         std::string second_html = html;
         auto color = second_html.find(".18,.72,.40"); second_html.replace(color, 11, ".20,.35,.85");
         char* content = g_base64_encode(reinterpret_cast<const guchar*>(second_html.data()), second_html.size());
@@ -606,7 +618,7 @@ int main(int argc, char** argv) {
           auto browser = *static_cast<CefRefPtr<Browser>*>(p); if (auto* window = browser->owner()) window->workspace->activate(browser); return G_SOURCE_REMOVE;
         }, return_to, +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
       }
-      if (g_getenv("FIGMA_GTK_TEST_TAB_SLIDE")) g_timeout_add(3500, +[](gpointer p) -> gboolean {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_TAB_SLIDE")) g_timeout_add(3500, +[](gpointer p) -> gboolean {
         struct SlideTest { Window* window; int step = 0; };
         g_timeout_add_full(G_PRIORITY_DEFAULT, 100, +[](gpointer p) -> gboolean {
           auto* test = static_cast<SlideTest*>(p); auto* window = test->window; auto* ui = window->workspace.get();
@@ -670,9 +682,9 @@ int main(int argc, char** argv) {
         return G_SOURCE_REMOVE;
       }, window);
     }
-    g_timeout_add_seconds(render_test && g_getenv("FIGMA_GTK_TEST_ZANE_SCRIPT") ? 20 : render_test && g_getenv("FIGMA_GTK_TEST_ZANE_USER_INPUT") ? 15 : render_test && g_getenv("FIGMA_GTK_TEST_COPY") ? 12 : (render_test || auth_test) ? 8 : 2, +[](gpointer p) -> gboolean {
+    g_timeout_add_seconds(render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_SCRIPT") ? 20 : render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_USER_INPUT") ? 15 : render_test && g_getenv("SELECT_FOR_FIGMA_TEST_COPY") ? 12 : (render_test || auth_test) ? 8 : 2, +[](gpointer p) -> gboolean {
       auto* app = static_cast<Application*>(p); Window* window = app->active_window();
-      if (g_getenv("FIGMA_GTK_TEST_ZANE_ACCOUNT")) for (auto& candidate : app->windows) {
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACCOUNT")) for (auto& candidate : app->windows) {
         if (!candidate->zane_account && !candidate->destroyed) { window=candidate.get(); break; }
       }
       if (window) {
@@ -695,7 +707,7 @@ int main(int argc, char** argv) {
         if (app->auth_test) {
           auto browser = window->current();
           bool passed = browser && !browser->is_auth_popup && browser->name == "AUTH PASS" && adw_tab_view_get_n_pages(window->tabs) == 0;
-          if (g_getenv("FIGMA_GTK_TEST_ZANE_ACCOUNT")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACCOUNT")) {
             passed=browser&&browser->cef_browser()&&app->zane_account_context&&g_object_get_data(G_OBJECT(browser->widget()),"zane-account-isolation-ok")&&
               !browser->cef_browser()->GetHost()->GetRequestContext()->IsSame(app->zane_account_context);
             for (auto& candidate : app->windows) if (candidate->zane_account) {
@@ -711,28 +723,28 @@ int main(int argc, char** argv) {
           g_print("Authentication handoff: %s; document tabs=%d\n", passed ? "PASS" : "FAIL", adw_tab_view_get_n_pages(window->tabs));
           if (!passed) {
             g_print("Local fixture title: %s; current popup=%s\n", browser ? browser->name.c_str() : "missing", browser && browser->is_auth_popup ? "yes" : "no");
-            if (browser && browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("console.log('ready: '+document.readyState+' hidden: '+document.hidden+' focus: '+document.hasFocus());", "figma-gtk://diagnostic", 1);
+            if (browser && browser->cef_browser()) browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("console.log('ready: '+document.readyState+' hidden: '+document.hidden+' focus: '+document.hasFocus());", "select-for-figma://diagnostic", 1);
           }
           if (!passed) app->diagnostic_failed = true;
         } else if (app->render_test) {
           auto browser = window->current();
           g_print("Render diagnostic: title=%s; GPU shared frames=%s\n", browser ? browser->name.c_str() : "missing", browser && browser->gpu_frames ? "yes" : "no");
-          if (g_getenv("FIGMA_GTK_TEST_TAB_SWITCHER")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_TAB_SWITCHER")) {
             const bool complete = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(window->window), "tab-switcher-tested"));
             g_print("Tab switcher completed diagnostic: %s\n", complete ? "PASS" : "FAIL"); if (!complete) app->diagnostic_failed = true;
           }
-          if (g_getenv("FIGMA_GTK_TEST_EDITOR_THEME")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_EDITOR_THEME")) {
             const bool complete = browser && GPOINTER_TO_INT(g_object_get_data(G_OBJECT(browser->widget()), "editor-theme-checks")) == 7;
             g_print("Editor theme checks completed diagnostic: %s\n", complete ? "PASS" : "FAIL");
             if (!complete) app->diagnostic_failed = true;
           }
           if (!browser || browser->name.find("OK") == std::string::npos) app->diagnostic_failed = true;
-          if (g_getenv("FIGMA_GTK_TEST_CREATION_RACE")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_CREATION_RACE")) {
             const bool one = Browser::active_count == 1;
             g_print("Single browser after creation/navigation race diagnostic: %s; active=%u\n",one ? "PASS" : "FAIL",Browser::active_count);
             if (!one) app->diagnostic_failed = true;
           }
-          if (g_getenv("FIGMA_GTK_TEST_RENDER_STATE")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_STATE")) {
             auto* paintable = gtk_widget_paintable_new(browser->surface()); auto* snapshot = gtk_snapshot_new();
             gdk_paintable_snapshot(paintable,snapshot,gtk_widget_get_width(browser->surface()),gtk_widget_get_height(browser->surface())); g_object_unref(paintable);
             auto* node = gtk_snapshot_free_to_node(snapshot); bool painted = false;
@@ -746,12 +758,12 @@ int main(int argc, char** argv) {
             }
             g_print("Editor redraw GL state diagnostic: %s\n",painted ? "PASS" : "FAIL"); if (!painted) app->diagnostic_failed = true;
           }
-          if (g_getenv("FIGMA_GTK_TEST_COPY")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_COPY")) {
             const bool copied = browser && g_object_get_data(G_OBJECT(browser->widget()),"copy-check-pass");
             g_print("Native copy clipboard diagnostic: %s\n",copied ? "PASS" : "FAIL"); if (!copied) app->diagnostic_failed = true;
           }
-          if (g_getenv("FIGMA_GTK_TEST_ZANE")) {
-            if(g_getenv("FIGMA_GTK_TEST_ZANE_SCRIPT")&&!g_getenv("FIGMA_GTK_TEST_ZANE_CANVAS_SCRIPT")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE")) {
+            if(g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_SCRIPT")&&!g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CANVAS_SCRIPT")) {
               char* report=nullptr;gsize length=0;const auto path=app->state.directory()+"/zane-last-error.json";
               const bool recorded=g_file_get_contents(path.c_str(),&report,&length,nullptr)&&std::string(report,length).find("unsupported key: NoSuchKey")!=std::string::npos;
               g_free(report);g_print("Zane precise failure record diagnostic: %s\n",recorded?"PASS":"FAIL");if(!recorded)app->diagnostic_failed=true;
@@ -762,16 +774,16 @@ int main(int argc, char** argv) {
             const bool awake = native || (bubble && gtk_widget_get_visible(bubble) && gtk_widget_get_mapped(bubble));
             auto* cursor = bubble ? gtk_widget_get_first_child(bubble) : nullptr;
             const bool visible_cursor = native || (cursor && GTK_IS_DRAWING_AREA(cursor) && gtk_widget_get_mapped(cursor) && gtk_widget_get_width(cursor) >= 28 && gtk_widget_get_height(cursor) >= 36);
-            if (g_getenv("FIGMA_GTK_TEST_ZANE_CURSOR")) {
+            if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CURSOR")) {
               const bool replaced = native && bubble && !gtk_widget_get_visible(bubble) && g_object_get_data(G_OBJECT(browser->widget()), "native-cursor-pan-ok") &&
-                g_object_get_data(G_OBJECT(browser->widget()),g_getenv("FIGMA_GTK_TEST_ZANE_FOLLOWUP") ? "zane-followup-ok" : "native-cursor-follow-ok");
-              if (!g_getenv("FIGMA_GTK_TEST_ZANE_FOLLOWUP") && !g_object_get_data(G_OBJECT(browser->widget()),"native-cursor-user-follow-ok")) app->diagnostic_failed=true;
+                g_object_get_data(G_OBJECT(browser->widget()),g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_FOLLOWUP") ? "zane-followup-ok" : "native-cursor-follow-ok");
+              if (!g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_FOLLOWUP") && !g_object_get_data(G_OBJECT(browser->widget()),"native-cursor-user-follow-ok")) app->diagnostic_failed=true;
               g_print("Native multiplayer cursor replaces GTK cursor diagnostic: %s\n", replaced ? "PASS" : "FAIL"); if (!replaced) app->diagnostic_failed = true;
             }
             const auto* full=browser?static_cast<const char*>(g_object_get_data(G_OBJECT(browser->widget()),"zane-response")):nullptr;
             const bool answered=full&&g_str_has_prefix(full,"Zane read two comments.");
-            if(g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")&&!g_object_get_data(G_OBJECT(browser->widget()),"zane-canvas-actions-ok")) app->diagnostic_failed=true;
-            if (g_getenv("FIGMA_GTK_TEST_ZANE_SPEECH")) {
+            if(g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACTIONS")&&!g_object_get_data(G_OBJECT(browser->widget()),"zane-canvas-actions-ok")) app->diagnostic_failed=true;
+            if (g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_SPEECH")) {
               const char* text=reply ? gtk_label_get_text(GTK_LABEL(reply)) : "";
               const bool sequenced=g_utf8_validate(text,-1,nullptr)&&g_utf8_strlen(text,-1)>60&&g_str_has_prefix(text,"Done ✅")&&g_str_has_suffix(text,"every word.");
               g_print("Zane timed model-selected speech diagnostic: %s\n",sequenced ? "PASS" : "FAIL");if(!sequenced) app->diagnostic_failed=true;
@@ -781,12 +793,12 @@ int main(int argc, char** argv) {
             g_print("Codex conversation and comment tools diagnostic: %s\n",answered ? "PASS" : "FAIL");
             if (!awake || !visible_cursor || !answered) { app->diagnostic_failed = true; if (reply) g_print("Zane fixture reply: %s\n",gtk_label_get_text(GTK_LABEL(reply))); }
           }
-          if (g_getenv("FIGMA_GTK_TEST_CURSOR")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_CURSOR")) {
             const bool cursor = browser && browser->custom_cursor_seen;
             g_print("Custom cursor diagnostic: %s\n", cursor ? "PASS" : "FAIL");
             if (!cursor) app->diagnostic_failed = true;
           }
-          if (g_getenv("FIGMA_GTK_TEST_RENDER_OVERVIEW")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_OVERVIEW")) {
             auto* source = gtk_widget_get_ancestor(header, ADW_TYPE_TAB_OVERVIEW);
             auto* capture = gtk_widget_paintable_new(source); auto* frame = gdk_paintable_get_current_image(capture);
             auto* snapshot = gtk_snapshot_new(); gdk_paintable_snapshot(frame, snapshot, gtk_widget_get_width(source), gtk_widget_get_height(source));
@@ -800,12 +812,12 @@ int main(int argc, char** argv) {
             }
             g_object_unref(frame); g_object_unref(capture);
             g_print("Workspace chrome background diagnostic: %s\n", opaque ? "PASS" : "FAIL"); if (!opaque) app->diagnostic_failed = true;
-            if (g_getenv("FIGMA_GTK_TEST_RENDER_GROUPS")) {
+            if (g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_GROUPS")) {
               auto* first = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 0))), "browser"));
               auto* second = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 1))), "browser"));
-              const auto id = window->workspace->create_group("Project Metro", first); if (!g_getenv("FIGMA_GTK_TEST_DRAWER_LAYOUT")) window->workspace->assign(second, id);
+              const auto id = window->workspace->create_group("Project Metro", first); if (!g_getenv("SELECT_FOR_FIGMA_TEST_DRAWER_LAYOUT")) window->workspace->assign(second, id);
             }
-            if (!g_getenv("FIGMA_GTK_TEST_HEADER_DRAG")) window->workspace->show_overview(true);
+            if (!g_getenv("SELECT_FOR_FIGMA_TEST_HEADER_DRAG")) window->workspace->show_overview(true);
             g_timeout_add(160, +[](gpointer p) -> gboolean {
               auto* app = static_cast<Application*>(p); if (auto* window = app->active_window()) app->take_screenshot(*window, app->screenshot+".transition.png"); return G_SOURCE_REMOVE;
             }, app);
@@ -813,7 +825,7 @@ int main(int argc, char** argv) {
               auto* app = static_cast<Application*>(p); if (auto* window = app->active_window()) {
                 app->take_screenshot(*window, app->screenshot+".overview.png");
                 auto* second = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 1))), "browser"));
-                if (g_getenv("FIGMA_GTK_TEST_RENDER_GROUPS")) {
+                if (g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_GROUPS")) {
                   auto* first = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 0))), "browser"));
                   auto* card = window->workspace->overview_group(first->group_id); auto* content = gtk_button_get_child(GTK_BUTTON(card));
                   auto* grid = gtk_widget_get_first_child(gtk_widget_get_first_child(content)); int count = 0; for (auto* child = gtk_widget_get_first_child(grid); child; child = gtk_widget_get_next_sibling(child)) ++count;
@@ -822,7 +834,7 @@ int main(int argc, char** argv) {
                   struct DrawerProbe { Application* app; CefRefPtr<Browser> member; double top = -1; int height = 0; };
                   auto* probe = new DrawerProbe{app,first};
                   g_signal_emit_by_name(card, "clicked");
-                  if (g_getenv("FIGMA_GTK_TEST_DRAWER_LAYOUT")) g_timeout_add(80,+[](gpointer p) -> gboolean {
+                  if (g_getenv("SELECT_FOR_FIGMA_TEST_DRAWER_LAYOUT")) g_timeout_add(80,+[](gpointer p) -> gboolean {
                     auto* probe = static_cast<DrawerProbe*>(p); auto* app = probe->app; if (auto* window = app->active_window()) {
                       auto* ui = window->workspace.get(); auto* drawer = ui->group_drawer();
                       auto* section = gtk_widget_get_first_child(drawer); auto* heading = gtk_widget_get_first_child(gtk_widget_get_last_child(section));
@@ -839,7 +851,7 @@ int main(int argc, char** argv) {
                       auto* ui = window->workspace.get(); auto* member = ui->preview_button(probe->member.get());
                       const bool drawer = member && gtk_widget_get_mapped(member);
                       g_print("Group drawer diagnostic: %s\n",drawer ? "PASS" : "FAIL"); if (!drawer) app->diagnostic_failed = true;
-                      if (g_getenv("FIGMA_GTK_TEST_DRAWER_LAYOUT")) {
+                      if (g_getenv("SELECT_FOR_FIGMA_TEST_DRAWER_LAYOUT")) {
                         graphene_rect_t panel{}, card{};
                         const bool measured = gtk_widget_compute_bounds(ui->group_drawer(),ui->overview(),&panel) && gtk_widget_compute_bounds(ui->overview_group(probe->member->group_id),ui->overview(),&card);
                         const double gap = panel.origin.y-card.origin.y-card.size.height;
@@ -853,17 +865,17 @@ int main(int argc, char** argv) {
                     } return G_SOURCE_REMOVE;
                   },probe,+[](gpointer p) { delete static_cast<DrawerProbe*>(p); }); return G_SOURCE_REMOVE;
                 }
-                if (g_getenv("FIGMA_GTK_TEST_DRAG")) {
+                if (g_getenv("SELECT_FOR_FIGMA_TEST_DRAG")) {
                   auto* first = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 0))), "browser"));
                   graphene_rect_t from, to;
-                  auto* first_tile = g_getenv("FIGMA_GTK_TEST_HEADER_DRAG") ? window->workspace->strip_tab(first) : window->workspace->preview_button(first);
-                  auto* second_tile = g_getenv("FIGMA_GTK_TEST_HEADER_DRAG") ? window->workspace->strip_tab(second) : window->workspace->preview_button(second);
+                  auto* first_tile = g_getenv("SELECT_FOR_FIGMA_TEST_HEADER_DRAG") ? window->workspace->strip_tab(first) : window->workspace->preview_button(first);
+                  auto* second_tile = g_getenv("SELECT_FOR_FIGMA_TEST_HEADER_DRAG") ? window->workspace->strip_tab(second) : window->workspace->preview_button(second);
                   const bool coordinates = gtk_widget_compute_bounds(first_tile, GTK_WIDGET(window->window), &from) && gtk_widget_compute_bounds(second_tile, GTK_WIDGET(window->window), &to);
                   if (!coordinates) { app->diagnostic_failed = true; return G_SOURCE_REMOVE; }
                   auto* surface = gtk_native_get_surface(GTK_NATIVE(window->window)); double sx, sy; gtk_native_get_surface_transform(GTK_NATIVE(window->window), &sx, &sy);
                   g_print("Drag coordinates: from=(%.0f,%.0f) size=(%.0f,%.0f) transform=(%.0f,%.0f)\n", from.origin.x,from.origin.y,from.size.width,from.size.height,sx,sy);
                   G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-                  char* request = g_strdup_printf("{\"window\":%lu,\"start\":[%d,%d],\"end\":[%d,%d]}", gdk_x11_surface_get_xid(surface), static_cast<int>(from.origin.x+from.size.width/2+sx), static_cast<int>(from.origin.y+from.size.height/2+sy), static_cast<int>(to.origin.x+to.size.width*.85+sx), static_cast<int>(to.origin.y+to.size.height/2+(g_getenv("FIGMA_GTK_TEST_HEADER_DRAG") ? 0 : 40)+sy));
+                  char* request = g_strdup_printf("{\"window\":%lu,\"start\":[%d,%d],\"end\":[%d,%d]}", gdk_x11_surface_get_xid(surface), static_cast<int>(from.origin.x+from.size.width/2+sx), static_cast<int>(from.origin.y+from.size.height/2+sy), static_cast<int>(to.origin.x+to.size.width*.85+sx), static_cast<int>(to.origin.y+to.size.height/2+(g_getenv("SELECT_FOR_FIGMA_TEST_HEADER_DRAG") ? 0 : 40)+sy));
                   G_GNUC_END_IGNORE_DEPRECATIONS
                   g_file_set_contents((app->screenshot+".drag.json").c_str(), request, -1, nullptr); g_free(request);
                   g_timeout_add(20, +[](gpointer p) -> gboolean {
@@ -907,7 +919,7 @@ int main(int argc, char** argv) {
               } return G_SOURCE_REMOVE;
             }, app);
           }
-        } else if (g_getenv("FIGMA_GTK_TEST_GHOST_GROUPS")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_GHOST_GROUPS")) {
           struct GhostProbe { Application* app; Window* window; Window* other; CefRefPtr<Browser> first, second; std::string live; int step = 0; };
           auto at = [window](int index) -> CefRefPtr<Browser> { return static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs,index))),"browser")); };
           auto first = at(0), second = at(1); auto* ui = window->workspace.get();
@@ -945,12 +957,12 @@ int main(int argc, char** argv) {
             }
             return G_SOURCE_CONTINUE;
           },probe,+[](gpointer p) { delete static_cast<GhostProbe*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_OVERFLOW")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_OVERFLOW")) {
           struct OverflowProbe { Application* app; Window* window; CefRefPtr<Browser> first, last; int step = 0, attempts = 0; };
           auto* first = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs,0))),"browser"));
           CefRefPtr<Browser> last;
           for (int i = adw_tab_view_get_n_pages(window->tabs);i < 35;++i) { last = window->open("https://www.figma.com/design/overflow-"+std::to_string(i),false,true); last->name = "Document "+std::to_string(i+1); }
-          if (g_getenv("FIGMA_GTK_TEST_OVERFLOW_GROUP")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_OVERFLOW_GROUP")) {
             const auto id = window->workspace->create_group("Many members",first);
             for (int i = 1;i < adw_tab_view_get_n_pages(window->tabs);++i) {
               auto* member = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs,i))),"browser")); window->workspace->assign(member,id);
@@ -966,7 +978,7 @@ int main(int argc, char** argv) {
                 const bool usable = gtk_widget_get_width(first) >= 180 && gtk_adjustment_get_upper(adjustment) > gtk_adjustment_get_page_size(adjustment) && gtk_widget_get_visible(next);
                 g_print("Readable overflow tabs diagnostic: %s; width=%d\n",usable ? "PASS" : "FAIL",gtk_widget_get_width(first)); if (!usable) app->diagnostic_failed = true;
                 app->take_screenshot(*probe->window,app->screenshot+".overflow.png");
-                if (g_getenv("FIGMA_GTK_TEST_OVERFLOW_DRAG")) {
+                if (g_getenv("SELECT_FOR_FIGMA_TEST_OVERFLOW_DRAG")) {
                   graphene_rect_t from,to; const bool coords = gtk_widget_compute_bounds(first,GTK_WIDGET(probe->window->window),&from) && gtk_widget_compute_bounds(next,GTK_WIDGET(probe->window->window),&to);
                   if (!coords) { app->diagnostic_failed = true; probe->window->close(); return G_SOURCE_REMOVE; }
                   double sx,sy; gtk_native_get_surface_transform(GTK_NATIVE(probe->window->window),&sx,&sy);
@@ -977,7 +989,7 @@ int main(int argc, char** argv) {
                 } else g_signal_emit_by_name(next,"clicked"); break;
               }
               case 1: {
-                if (g_getenv("FIGMA_GTK_TEST_OVERFLOW_DRAG") && !g_file_test((app->screenshot+".drag.done").c_str(),G_FILE_TEST_EXISTS) && ++probe->attempts < 20) { --probe->step; return G_SOURCE_CONTINUE; }
+                if (g_getenv("SELECT_FOR_FIGMA_TEST_OVERFLOW_DRAG") && !g_file_test((app->screenshot+".drag.done").c_str(),G_FILE_TEST_EXISTS) && ++probe->attempts < 20) { --probe->step; return G_SOURCE_CONTINUE; }
                 const bool moved = gtk_adjustment_get_value(adjustment) > 1; g_print("Overflow scroll button diagnostic: %s\n",moved ? "PASS" : "FAIL"); if (!moved) app->diagnostic_failed = true;
                 ui->activate(probe->last); break;
               }
@@ -986,7 +998,7 @@ int main(int argc, char** argv) {
                 const bool measured = gtk_widget_compute_bounds(ui->strip_tab(probe->last.get()),GTK_WIDGET(scroll),&bounds);
                 const bool visible = measured && bounds.origin.x >= -1 && bounds.origin.x+bounds.size.width <= gtk_widget_get_width(GTK_WIDGET(scroll))+1;
                 g_print("Overflow selected tab visible diagnostic: %s; x=%.0f width=%.0f viewport=%d value=%.0f\n",visible ? "PASS" : "FAIL",bounds.origin.x,bounds.size.width,gtk_widget_get_width(GTK_WIDGET(scroll)),gtk_adjustment_get_value(adjustment)); if (!visible) app->diagnostic_failed = true;
-                if (g_getenv("FIGMA_GTK_TEST_OVERFLOW_GROUP")) {
+                if (g_getenv("SELECT_FOR_FIGMA_TEST_OVERFLOW_GROUP")) {
                   auto* collapse = ui->group_button(probe->last->group_id); graphene_rect_t control;
                   const bool fixed = collapse && gtk_widget_compute_bounds(collapse,ui->strip(),&control) && control.origin.x >= 0 && control.origin.x+control.size.width <= gtk_widget_get_width(ui->strip());
                   g_print("Overflow group collapse stays visible diagnostic: %s\n",fixed ? "PASS" : "FAIL"); if (!fixed) app->diagnostic_failed = true;
@@ -996,13 +1008,13 @@ int main(int argc, char** argv) {
             }
             return G_SOURCE_CONTINUE;
           },probe,+[](gpointer p) { delete static_cast<OverflowProbe*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_DRAG_INTERACTION")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_DRAG_INTERACTION")) {
           struct Interaction {
             Application* app; Window* window; CefRefPtr<Browser> first, second;
             std::string id; bool overview, whole, merge, ungroup; int step = 0, attempts = 0;
           };
           auto at = [window](int index) -> CefRefPtr<Browser> { return static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs,index))),"browser")); };
-          auto* test = new Interaction{app,window,at(0),at(1),"",g_getenv("FIGMA_GTK_TEST_INTERACTION_OVERVIEW") != nullptr,g_getenv("FIGMA_GTK_TEST_INTERACTION_WHOLE") != nullptr,g_getenv("FIGMA_GTK_TEST_INTERACTION_MERGE") != nullptr,g_getenv("FIGMA_GTK_TEST_INTERACTION_UNGROUP") != nullptr};
+          auto* test = new Interaction{app,window,at(0),at(1),"",g_getenv("SELECT_FOR_FIGMA_TEST_INTERACTION_OVERVIEW") != nullptr,g_getenv("SELECT_FOR_FIGMA_TEST_INTERACTION_WHOLE") != nullptr,g_getenv("SELECT_FOR_FIGMA_TEST_INTERACTION_MERGE") != nullptr,g_getenv("SELECT_FOR_FIGMA_TEST_INTERACTION_UNGROUP") != nullptr};
           if (!test->merge) { test->id = window->workspace->create_group("Moving group",test->first); window->workspace->assign(test->second,test->id); }
           window->workspace->activate(test->first);
           if (test->whole) window->workspace->activate(test->second);
@@ -1044,7 +1056,7 @@ int main(int argc, char** argv) {
             }
             ++test->step; return G_SOURCE_CONTINUE;
           },test,+[](gpointer p) { delete static_cast<Interaction*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_GROUP_DRAG")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_GROUP_DRAG")) {
           struct GroupDragTest {
             Application* app; Window* window; CefRefPtr<Browser> first, second, third, fourth;
             std::string first_id, second_id; bool overview, members, plain, join; int step = 0, attempts = 0;
@@ -1052,7 +1064,7 @@ int main(int argc, char** argv) {
           auto browser_at = [window](int index) -> CefRefPtr<Browser> {
             return static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, index))), "browser"));
           };
-          auto* test = new GroupDragTest{app, window, browser_at(0), browser_at(1), browser_at(2), nullptr, "", "", g_getenv("FIGMA_GTK_TEST_GROUP_DRAG_OVERVIEW") != nullptr, g_getenv("FIGMA_GTK_TEST_GROUP_DRAG_MEMBERS") != nullptr, g_getenv("FIGMA_GTK_TEST_GROUP_DRAG_PLAIN") != nullptr, g_getenv("FIGMA_GTK_TEST_GROUP_DRAG_JOIN") != nullptr};
+          auto* test = new GroupDragTest{app, window, browser_at(0), browser_at(1), browser_at(2), nullptr, "", "", g_getenv("SELECT_FOR_FIGMA_TEST_GROUP_DRAG_OVERVIEW") != nullptr, g_getenv("SELECT_FOR_FIGMA_TEST_GROUP_DRAG_MEMBERS") != nullptr, g_getenv("SELECT_FOR_FIGMA_TEST_GROUP_DRAG_PLAIN") != nullptr, g_getenv("SELECT_FOR_FIGMA_TEST_GROUP_DRAG_JOIN") != nullptr};
           test->first_id = window->workspace->create_group("Project Metro", test->first);
           window->workspace->assign(test->second, test->first_id);
           test->second_id = window->workspace->create_group("Project Lychee", test->third);
@@ -1108,7 +1120,7 @@ int main(int argc, char** argv) {
             }
             ++test->step; return G_SOURCE_CONTINUE;
           }, test, +[](gpointer p) { delete static_cast<GroupDragTest*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_GROUP_CREATION")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_GROUP_CREATION")) {
           struct GroupCreateTest { Application* app; Window* window; CefRefPtr<Browser> first; int step = 0, attempts = 0; };
           auto* first = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 0))), "browser"));
           auto* test = new GroupCreateTest{app, window, first};
@@ -1191,7 +1203,7 @@ int main(int argc, char** argv) {
             }
             ++test->step; return G_SOURCE_CONTINUE;
           }, test, +[](gpointer p) { delete static_cast<GroupCreateTest*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_MIDDLE_CLICK")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_MIDDLE_CLICK")) {
           struct MiddleTest { Application* app; Window* window; CefRefPtr<Browser> first, second; int step = 0, attempts = 0; };
           auto browser_at = [window](int index) -> CefRefPtr<Browser> { return static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, index))), "browser")); };
           auto* test = new MiddleTest{app, window, browser_at(0), browser_at(1)};
@@ -1228,7 +1240,7 @@ int main(int argc, char** argv) {
             }
             ++test->step; return G_SOURCE_CONTINUE;
           }, test, +[](gpointer p) { delete static_cast<MiddleTest*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_TAB_CHROME")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_TAB_CHROME")) {
           struct TabChromeTest { Application* app; Window* window; CefRefPtr<Browser> first; int initial = 0, expanded = 0, middle = 0, step = 0; };
           auto* first = static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, 0))), "browser"));
           window->workspace->activate(first);
@@ -1272,7 +1284,7 @@ int main(int argc, char** argv) {
             }
             return G_SOURCE_CONTINUE;
           }, test, +[](gpointer p) { delete static_cast<TabChromeTest*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_OVERVIEW_NEW_TAB")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_OVERVIEW_NEW_TAB")) {
           struct NewTabTest { Application* app; Window* window; CefRefPtr<Browser> previous; int step = 0; };
           window->open("https://www.figma.com/design/0");
           auto* test = new NewTabTest{app, window, window->current()}; window->workspace->show_overview(true);
@@ -1295,7 +1307,7 @@ int main(int argc, char** argv) {
             }
             return G_SOURCE_CONTINUE;
           }, test, +[](gpointer p) { delete static_cast<NewTabTest*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_DOWNLOADS")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_DOWNLOADS")) {
           const auto path = app->state.directory()+"/Gamepad Keyboard.svg";
           const char* fixture = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"/>";
           g_file_set_contents(path.c_str(), fixture, -1, nullptr); app->state.exports.push_back({path, "https://www.figma.com/design/0", "Project Metro", "14.10.2026"});
@@ -1307,7 +1319,7 @@ int main(int argc, char** argv) {
               app->take_screenshot(*window, app->screenshot+".downloads.png"); window->close();
             } return G_SOURCE_REMOVE;
           }, app); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_HOME_CARD")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_HOME_CARD")) {
           struct HomeTest { Application* app; Window* window; CefRefPtr<Browser> home; AdwTabPage* document; int step = 0, attempts = 0; };
           auto home = window->current(); window->open("https://www.figma.com/design/0");
           auto* test = new HomeTest{app, window, home, adw_tab_view_get_selected_page(window->tabs)}; window->workspace->show_overview(true);
@@ -1340,7 +1352,7 @@ int main(int argc, char** argv) {
             }
             return G_SOURCE_CONTINUE;
           }, test, +[](gpointer p) { delete static_cast<HomeTest*>(p); }); return G_SOURCE_REMOVE;
-        } else if (g_getenv("FIGMA_GTK_TEST_GROUPS")) {
+        } else if (g_getenv("SELECT_FOR_FIGMA_TEST_GROUPS")) {
           struct TestGroups { Application* app; Window* window; std::string id; CefRefPtr<Browser> first, second, third; std::string other; int step = 0; };
           auto browser_at = [window](int index) -> CefRefPtr<Browser> {
             return static_cast<Browser*>(g_object_get_data(G_OBJECT(adw_tab_page_get_child(adw_tab_view_get_nth_page(window->tabs, index))), "browser"));
@@ -1441,7 +1453,7 @@ int main(int argc, char** argv) {
           }, test, +[](gpointer p) { delete static_cast<TestGroups*>(p); });
           return G_SOURCE_REMOVE;
         } else {
-          if (g_getenv("FIGMA_GTK_TEST_LOGIN_SEARCH")) {
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_LOGIN_SEARCH")) {
             auto* dialog = window->show_login_picker(window->current(), "https://www.figma.com/login", {{"Personal", "alice@example.invalid", ""}, {"Work", "bob@example.invalid", ""}, {"Żółć", "unicode@example.invalid", ""}});
             auto* search = GTK_EDITABLE(g_object_get_data(G_OBJECT(dialog), "login-search"));
             auto* list = GTK_WIDGET(g_object_get_data(G_OBJECT(dialog), "login-list"));
@@ -1456,17 +1468,17 @@ int main(int argc, char** argv) {
             gtk_editable_set_text(search, "BOB"); g_signal_emit_by_name(search, "search-changed");
             if (!search_passed) app->diagnostic_failed = true;
             g_print("KeePassXC search diagnostic: %s\n", search_passed ? "PASS" : "FAIL");
-          } else if (g_getenv("FIGMA_GTK_TEST_SHORTCUTS")) window->show_shortcuts();
-          else if (g_getenv("FIGMA_GTK_TEST_ABOUT")) window->show_about();
+          } else if (g_getenv("SELECT_FOR_FIGMA_TEST_SHORTCUTS")) window->show_shortcuts();
+          else if (g_getenv("SELECT_FOR_FIGMA_TEST_ABOUT")) window->show_about();
           else window->show_preferences();
           g_print("Native diagnostic: Home, tabs and dialog presented\n");
         }
       }
-      g_timeout_add_seconds(g_getenv("FIGMA_GTK_TEST_RENDER_OVERVIEW") ? 4 : 1, +[](gpointer p) -> gboolean {
+      g_timeout_add_seconds(g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_OVERVIEW") ? 4 : 1, +[](gpointer p) -> gboolean {
         auto* app = static_cast<Application*>(p);
-        if (app->smoke_test && (g_getenv("FIGMA_GTK_TEST_LOGIN_SEARCH") || g_getenv("FIGMA_GTK_TEST_SHORTCUTS") || g_getenv("FIGMA_GTK_TEST_ABOUT")) && !app->screenshot.empty())
+        if (app->smoke_test && (g_getenv("SELECT_FOR_FIGMA_TEST_LOGIN_SEARCH") || g_getenv("SELECT_FOR_FIGMA_TEST_SHORTCUTS") || g_getenv("SELECT_FOR_FIGMA_TEST_ABOUT")) && !app->screenshot.empty())
           if (auto* window = app->active_window()) {
-            if (g_getenv("FIGMA_GTK_TEST_SHORTCUTS")) {
+            if (g_getenv("SELECT_FOR_FIGMA_TEST_SHORTCUTS")) {
               auto* reference = static_cast<GWeakRef*>(g_object_get_data(G_OBJECT(window->window), "shortcuts-window"));
               if (auto* shortcuts = G_OBJECT(g_weak_ref_get(reference))) {
                 app->take_screenshot(GTK_WINDOW(shortcuts), app->screenshot + ".shortcuts.png"); g_object_unref(shortcuts);

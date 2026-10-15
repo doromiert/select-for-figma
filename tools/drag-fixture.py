@@ -9,7 +9,7 @@ import sys
 import time
 import zlib
 
-assert os.environ.get("FIGMA_GTK_PRIVATE_BUS") == "1"
+assert os.environ.get("SELECT_FOR_FIGMA_PRIVATE_BUS") == "1"
 request = Path(sys.argv[1])
 for _ in range(600):
     if request.exists():
@@ -19,7 +19,7 @@ else:
     raise SystemExit("No drag request from the diagnostic")
 data = json.loads(request.read_text())
 x11 = c.CDLL("libX11.so.6")
-xt = c.CDLL(os.environ["FIGMA_GTK_XTEST_LIBRARY"])
+xt = c.CDLL(os.environ["SELECT_FOR_FIGMA_XTEST_LIBRARY"])
 x11.XOpenDisplay.restype = c.c_void_p
 x11.XOpenDisplay.argtypes = [c.c_char_p]
 x11.XDefaultRootWindow.restype = c.c_ulong

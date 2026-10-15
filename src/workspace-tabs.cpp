@@ -494,7 +494,7 @@ GtkWidget* group_preview(CefRefPtr<Browser> browser, int width, int height) {
     auto* cropped = gtk_snapshot_free_to_paintable(snapshot, &bounds.size); g_object_unref(image);
     preview = preview_picture(cropped,width,height); g_object_unref(cropped);
   } else if (browser) {
-    preview = gtk_image_new_from_icon_name("io.github.doromiert.FigmaGtk"); gtk_image_set_pixel_size(GTK_IMAGE(preview), 24);
+    preview = gtk_image_new_from_icon_name("io.github.doromiert.SelectForFigma"); gtk_image_set_pixel_size(GTK_IMAGE(preview), 24);
   } else preview = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_size_request(preview, width, height); gtk_widget_set_overflow(preview, GTK_OVERFLOW_HIDDEN);
   gtk_widget_add_css_class(preview, "group-preview"); gtk_widget_set_can_target(preview, false); return preview;
@@ -957,7 +957,7 @@ GtkWidget* WorkspaceTabs::thumbnail(CefRefPtr<Browser> browser, int width, int h
     graphene_size_t size = GRAPHENE_SIZE_INIT(static_cast<float>(width),static_cast<float>(height)); auto* cropped = gtk_snapshot_free_to_paintable(snapshot, &size);
     picture = preview_picture(cropped,width,height); g_object_unref(cropped); g_object_unref(image);
   } else {
-    picture = gtk_image_new_from_icon_name(browser->is_home ? "go-home-symbolic" : "io.github.doromiert.FigmaGtk");
+    picture = gtk_image_new_from_icon_name(browser->is_home ? "go-home-symbolic" : "io.github.doromiert.SelectForFigma");
     gtk_image_set_pixel_size(GTK_IMAGE(picture), 48); gtk_widget_add_css_class(picture, "dim-label");
   }
   gtk_widget_add_css_class(picture, "thumbnail"); gtk_widget_set_overflow(picture, GTK_OVERFLOW_HIDDEN);
@@ -1071,7 +1071,7 @@ void WorkspaceTabs::attach_drag(GtkWidget* source, GtkWidget* tile, CefRefPtr<Br
     graphene_rect_t tile_bounds;
     if (!gtk_widget_compute_bounds(data->tile, data->tile, &tile_bounds)) return nullptr;
     data->x = point.x-tile_bounds.origin.x; data->y = point.y-tile_bounds.origin.y;
-    if (data->ui->win_.app.render_test && g_getenv("FIGMA_GTK_TEST_HEADER_DRAG")) g_print("Header drag prepare\n");
+    if (data->ui->win_.app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_HEADER_DRAG")) g_print("Header drag prepare\n");
     auto* capture = gtk_widget_paintable_new(data->tile); auto* image = gdk_paintable_get_current_image(capture);
     if (!gtk_widget_has_css_class(data->tile, "overview-tab")) {
       // Retain the source surface under translucent tabs and group previews.
@@ -1099,7 +1099,7 @@ void WorkspaceTabs::attach_drag(GtkWidget* source, GtkWidget* tile, CefRefPtr<Br
     return gdk_content_provider_new_typed(ADW_TYPE_TAB_PAGE, adw_tab_view_get_page(data->ui->win_.tabs, data->browser->widget()));
   })), drag_data);
   g_signal_connect(drag, "drag-begin", G_CALLBACK(+[](GtkDragSource*, GdkDrag*, DragContext* data) {
-    if (data->tile) { if (data->ui->win_.app.render_test && g_getenv("FIGMA_GTK_TEST_HEADER_DRAG")) g_print("Header drag begin\n"); data->ui->begin_drag(data->tile); }
+    if (data->tile) { if (data->ui->win_.app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_HEADER_DRAG")) g_print("Header drag begin\n"); data->ui->begin_drag(data->tile); }
   }), drag_data);
   g_signal_connect(drag,"drag-cancel",G_CALLBACK((+[](GtkDragSource*,GdkDrag* drag,GdkDragCancelReason reason,DragContext* data) -> gboolean {
     if (reason != GDK_DRAG_CANCEL_NO_TARGET || data->ui->win_.closing || data->ui->win_.destroyed) return false;

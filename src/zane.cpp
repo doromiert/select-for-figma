@@ -39,12 +39,14 @@ double number(JsonObject* obj,const char* key,double fallback = 0) {
   auto* node = obj ? json_object_get_member(obj,key) : nullptr;
   return node && JSON_NODE_HOLDS_VALUE(node) && (json_node_get_value_type(node) == G_TYPE_INT64 || json_node_get_value_type(node) == G_TYPE_DOUBLE) ? json_node_get_double(node) : fallback;
 }
-const SecretSchema token_schema = {"io.github.doromiert.FigmaGtk.FigmaToken",SECRET_SCHEMA_NONE,{{"application",SECRET_SCHEMA_ATTRIBUTE_STRING},{nullptr,SECRET_SCHEMA_ATTRIBUTE_STRING}},0,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
-constexpr const char* app_id = "io.github.doromiert.FigmaGtk";
-constexpr const char* bridge_source = "figma-gtk://zane";
+const SecretSchema token_schema = {"io.github.doromiert.SelectForFigma.FigmaToken",SECRET_SCHEMA_NONE,{{"application",SECRET_SCHEMA_ATTRIBUTE_STRING},{nullptr,SECRET_SCHEMA_ATTRIBUTE_STRING}},0,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+constexpr const char* app_id = "io.github.doromiert.SelectForFigma";
+constexpr const char* legacy_app_id = "io.github.doromiert.FigmaGtk";
+const SecretSchema legacy_token_schema = {"io.github.doromiert.FigmaGtk.FigmaToken",SECRET_SCHEMA_NONE,{{"application",SECRET_SCHEMA_ATTRIBUTE_STRING},{nullptr,SECRET_SCHEMA_ATTRIBUTE_STRING}},0,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+constexpr const char* bridge_source = "select-for-figma://zane";
 constexpr const char* bridge_message = "select.zane.message";
 bool account_fixture(Browser& browser,const std::string& url) {
-  return browser.owner()&&browser.owner()->app.render_test&&g_getenv("FIGMA_GTK_TEST_ZANE_USER_MODE")&&url.starts_with("data:text/html;base64,");
+  return browser.owner()&&browser.owner()->app.render_test&&g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_USER_MODE")&&url.starts_with("data:text/html;base64,");
 }
 std::string display_reply(const std::string& value) {
   char* valid=g_utf8_make_valid(value.data(),value.size());std::string result(valid);g_free(valid);return result;
@@ -240,7 +242,7 @@ struct Zane::Session : std::enable_shared_from_this<Session> {
   }
   bool valid() const {
     return !stopped && browser && !browser->closing && browser->owner() && !browser->owner()->destroyed &&
-      ((Policy::file_key(browser->url) == key && !key.empty()) || (browser->owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_ZANE")));
+      ((Policy::file_key(browser->url) == key && !key.empty()) || (browser->owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE")));
   }
   void shutdown() {
     if (stopped) return;
@@ -304,7 +306,7 @@ struct Zane::Session : std::enable_shared_from_this<Session> {
   void start() {
     if(discovery) return;
     char* found = g_find_program_in_path("codex");
-    const char* fake = valid() && browser->owner()->app.render_test ? g_getenv("FIGMA_GTK_TEST_CODEX") : nullptr;
+    const char* fake = valid() && browser->owner()->app.render_test ? g_getenv("SELECT_FOR_FIGMA_TEST_CODEX") : nullptr;
     if (!found && !fake) { fail("Install Codex and run codex login once, then try again."); return; }
     if (workspace.empty()) { char* temp = g_dir_make_tmp("select-zane-XXXXXX",nullptr); if (!temp) { g_free(found); fail("Could not start Zane's session."); return; } workspace = temp; g_free(temp); }
     auto* launcher = g_subprocess_launcher_new(static_cast<GSubprocessFlags>(G_SUBPROCESS_FLAGS_STDOUT_PIPE|G_SUBPROCESS_FLAGS_STDERR_SILENCE));
@@ -490,7 +492,7 @@ struct Zane::Session : std::enable_shared_from_this<Session> {
         finish_timeout();
         if (work_mode && !error) last_work_reply = response;
         if (!error&&!spoke_this_turn&&!response.empty()) say(response,true);
-        if (browser->owner()->app.render_test&&g_getenv("FIGMA_GTK_TEST_ZANE")) g_object_set_data_full(G_OBJECT(browser->widget()),"zane-response",g_strdup(response.c_str()),g_free);
+        if (browser->owner()->app.render_test&&g_getenv("SELECT_FOR_FIGMA_TEST_ZANE")) g_object_set_data_full(G_OBJECT(browser->widget()),"zane-response",g_strdup(response.c_str()),g_free);
         if (error) say(text(error,"message")); else if (busy && response.empty()) say(text(result,"status") == "interrupted" ? "Stopped." : "Zane finished without a reply.");
         turn.clear(); set_busy(false); next_followup();
       }
@@ -721,8 +723,8 @@ struct Zane::Session : std::enable_shared_from_this<Session> {
 
 void Zane::Session::comments(const std::string& id,int offset,int limit) {
   struct Fetch { std::shared_ptr<Session> self; std::string id,key,fixture; int offset,limit,generation; bool diagnostic; };
-  const bool diagnostic = browser->owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_ZANE");
-  const char* fixture = diagnostic ? g_getenv("FIGMA_GTK_TEST_ZANE_API") : nullptr;
+  const bool diagnostic = browser->owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE");
+  const char* fixture = diagnostic ? g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_API") : nullptr;
   auto* work = new Fetch{shared_from_this(),id,key,fixture && std::string(fixture).starts_with("http://127.0.0.1:") ? fixture : "",offset,limit,generation,diagnostic};
   auto* task = g_task_new(nullptr,cancellation,+[](GObject*,GAsyncResult* result,gpointer p) {
     auto* work = static_cast<Fetch*>(p); auto self = work->self; GError* error = nullptr;
@@ -737,7 +739,12 @@ void Zane::Session::comments(const std::string& id,int offset,int limit) {
   g_task_set_task_data(task,work,nullptr);
   g_task_run_in_thread(task,+[](GTask* task,gpointer,gpointer p,GCancellable* cancellation) {
     auto* work = static_cast<Fetch*>(p); GError* error = nullptr;
-    char* token = work->diagnostic ? (work->fixture.empty() ? nullptr : g_strdup("fixture-token")) : secret_password_lookup_sync(&token_schema,cancellation,&error,"application",app_id,nullptr); g_clear_error(&error);
+    char* token = work->diagnostic ? (work->fixture.empty() ? nullptr : g_strdup("fixture-token")) : secret_password_lookup_sync(&token_schema,cancellation,&error,"application",app_id,nullptr);
+    if (!token && !error && !work->diagnostic) {
+      token = secret_password_lookup_sync(&legacy_token_schema,cancellation,&error,"application",legacy_app_id,nullptr);
+      if (token) secret_password_store_sync(&token_schema,SECRET_COLLECTION_DEFAULT,"Select for Figma comment access",token,cancellation,&error,"application",app_id,nullptr);
+    }
+    g_clear_error(&error);
     if (!token || !*token) { if (token) secret_password_free(token); g_task_return_pointer(task,g_strdup("NO_TOKEN"),g_free); return; }
     auto* session = soup_session_new(); soup_session_set_timeout(session,30);
     auto* message = soup_message_new("GET",(work->fixture.empty() ? "https://api.figma.com/v1/files/"+work->key+"/comments" : work->fixture).c_str()); soup_message_set_flags(message,SOUP_MESSAGE_NO_REDIRECT);
@@ -786,10 +793,10 @@ void Zane::commit(const char* value) {
 }
 void Zane::install(CefRefPtr<CefFrame> frame) {
   stop(); if (!browser_.owner()) return; session_ = std::make_shared<Session>(browser_);
-  auto* bytes = g_resources_lookup_data("/io/github/doromiert/FigmaGtk/assistant/bridge.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr); if (!bytes) return;
+  auto* bytes = g_resources_lookup_data("/io/github/doromiert/SelectForFigma/assistant/bridge.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr); if (!bytes) return;
   gsize size; const auto* data = static_cast<const char*>(g_bytes_get_data(bytes,&size)); std::string script(data,size); g_bytes_unref(bytes);
   const auto pos = script.find("__BRIDGE_NONCE__"); script.replace(pos,std::strlen("__BRIDGE_NONCE__"),quote(session_->nonce));
-  auto* cursor = g_resources_lookup_data("/io/github/doromiert/FigmaGtk/assistant/native-cursor.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr);
+  auto* cursor = g_resources_lookup_data("/io/github/doromiert/SelectForFigma/assistant/native-cursor.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr);
   if (cursor) { gsize size; const auto* data = static_cast<const char*>(g_bytes_get_data(cursor,&size)); script.insert(0,std::string(data,size)+"\n"); g_bytes_unref(cursor); }
   frame->ExecuteJavaScript(script+"\nwindow.__selectZaneBeginDesignSession?.("+quote(session_->nonce)+")",bridge_source,1);
 }
@@ -803,7 +810,7 @@ void Zane::bind_renderer(CefRefPtr<CefFrame> frame, CefRefPtr<CefV8Context> cont
 bool Zane::receive(CefRefPtr<CefFrame> frame, CefProcessId source, CefRefPtr<CefProcessMessage> envelope) {
   if (source != PID_RENDERER || envelope->GetName() != bridge_message) return false;
   if (!frame || !frame->IsValid() || !frame->IsMain() || !session_ || !session_->valid()) return true;
-  const bool diagnostic = browser_.owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_ZANE");
+  const bool diagnostic = browser_.owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE");
   if (!diagnostic && Policy::file_key(frame->GetURL()) != session_->key) return true;
   const auto message = envelope->GetArgumentList()->GetString(0).ToString();
   const auto prefix = "select-zane:"+session_->nonce+":"; if (!message.starts_with(prefix)) return false;
@@ -838,7 +845,7 @@ bool Zane::receive(CefRefPtr<CefFrame> frame, CefProcessId source, CefRefPtr<Cef
     session_->native_known = true;
     auto* value = json_object_get_member(obj,"native");
     session_->native_cursor = value && JSON_NODE_HOLDS_VALUE(value) && json_node_get_value_type(value) == G_TYPE_BOOLEAN && json_node_get_boolean(value);
-    if (browser_.owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_ZANE_CURSOR") && !session_->native_cursor) g_print("Native cursor compatibility diagnostic: %s\n", text(obj,"detail").c_str());
+    if (browser_.owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CURSOR") && !session_->native_cursor) g_print("Native cursor compatibility diagnostic: %s\n", text(obj,"detail").c_str());
     g_object_set_data(G_OBJECT(browser_.widget()),"zane-native-cursor",GINT_TO_POINTER(session_->native_cursor)); session_->show_panel();
   } else if (type == "panel") {
     session_->panel_requested = true; session_->show_panel(); gtk_widget_grab_focus(session_->entry);
@@ -883,7 +890,7 @@ void Zane::refresh_account(Browser& browser) {
   auto self = target ? target->lock() : nullptr;
   const auto* state = static_cast<const char*>(g_object_get_data(G_OBJECT(browser.widget()),"zane-account-state"));
   if (!self || !state || !self->valid() || !self->visible || (!browser.is_home && self->key != Policy::file_key(browser.url))) return;
-  auto* bytes = g_resources_lookup_data("/io/github/doromiert/FigmaGtk/assistant/native-cursor.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr); if (!bytes) return;
+  auto* bytes = g_resources_lookup_data("/io/github/doromiert/SelectForFigma/assistant/native-cursor.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr); if (!bytes) return;
   gsize size; const auto* data = static_cast<const char*>(g_bytes_get_data(bytes,&size)); std::string script(data,size); g_bytes_unref(bytes);
   script = "if (typeof window.__selectZanePeer!=='function') {"+script+"}\nwindow.__selectZanePeer("+std::string(state)+")";
   browser.cef_browser()->GetMainFrame()->ExecuteJavaScript(script,bridge_source,1);
@@ -1006,7 +1013,11 @@ void Zane::add_preferences(Window& window,AdwPreferencesPage* page) {
       g_clear_error(&error); g_object_unref(work->button); g_application_release(G_APPLICATION(work->window->app.gtk_app)); delete work;
     },work);
     g_task_run_in_thread(task,+[](GTask* task,gpointer,gpointer,GCancellable*) {
-      GError* error = nullptr; const bool ok = secret_password_clear_sync(&token_schema,nullptr,&error,"application",app_id,nullptr);
+      GError* error = nullptr; bool ok = secret_password_clear_sync(&token_schema,nullptr,&error,"application",app_id,nullptr);
+      if (!error) {
+        const bool legacy_removed = secret_password_clear_sync(&legacy_token_schema,nullptr,&error,"application",legacy_app_id,nullptr);
+        ok = ok || legacy_removed;
+      }
       if (error) g_task_return_error(task,error); else g_task_return_boolean(task,ok);
     }); g_object_unref(task);
   })),&window);

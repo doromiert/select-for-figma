@@ -17,7 +17,7 @@
         buildInputs = package.buildInputs;
         LD_LIBRARY_PATH = lib.makeLibraryPath package.cefSdk.buildInputs;
         CEF_ROOT = package.cefSdk;
-        FIGMA_GTK_XTEST_LIBRARY = "${pkgs.libXtst}/lib/libXtst.so.6";
+        SELECT_FOR_FIGMA_XTEST_LIBRARY = "${pkgs.libXtst}/lib/libXtst.so.6";
       };
       checks.${system}.build = package;
       formatter.${system} = pkgs.nixfmt;

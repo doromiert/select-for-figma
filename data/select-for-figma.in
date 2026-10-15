@@ -1,0 +1,3 @@
+#!/bin/sh
+app_bin_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$app_bin_dir/@APP_LIBDIR_FROM_BINDIR@/select-for-figma/select-for-figma" "$@"

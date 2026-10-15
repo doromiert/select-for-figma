@@ -17,7 +17,7 @@
 #include <json-glib/json-glib.h>
 
 namespace {
-constexpr const char* app_id = "io.github.doromiert.FigmaGtk";
+constexpr const char* app_id = "io.github.doromiert.SelectForFigma";
 GtkWidget* icon_button(const char* icon, const char* tooltip, const char* action) {
   GtkWidget* button = gtk_button_new_from_icon_name(icon);
   gtk_widget_set_tooltip_text(button, tooltip);
@@ -54,7 +54,7 @@ Application::Application() {
   g_set_application_name("Select for Figma");
   gtk_window_set_default_icon_name(app_id);
   g_signal_connect_after(gtk_app, "startup", G_CALLBACK(+[](GApplication*, gpointer) {
-    gtk_icon_theme_add_resource_path(gtk_icon_theme_get_for_display(gdk_display_get_default()), "/io/github/doromiert/FigmaGtk/icons");
+    gtk_icon_theme_add_resource_path(gtk_icon_theme_get_for_display(gdk_display_get_default()), "/io/github/doromiert/SelectForFigma/icons");
     GtkCssProvider* provider = gtk_css_provider_new();
     gtk_css_provider_load_from_string(provider,
       ".tab-switcher { background: var(--popover-bg-color); color: var(--popover-fg-color); border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 24%); }"
@@ -933,7 +933,7 @@ void fill_login(CefRefPtr<Browser> browser, const std::string& url, const KeePas
     fill(username, login.username); fill(password, login.password);
     if (password || username) (password || username).focus();
   })())JS";
-  browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(script, "figma-gtk://keepassxc", 1);
+  browser->cef_browser()->GetMainFrame()->ExecuteJavaScript(script, "select-for-figma://keepassxc", 1);
   sodium_memzero(script.data(), script.size()); sodium_memzero(data, std::strlen(data));
   g_free(data); g_object_unref(generator); json_node_free(node);
 }

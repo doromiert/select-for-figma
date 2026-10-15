@@ -5,9 +5,9 @@
 // A private primary instance lets us verify remote activation without opening
 // another editor or touching a desktop session.
 int main(int argc, char** argv) {
-  if (argc != 3 || g_strcmp0(g_getenv("FIGMA_GTK_PRIVATE_BUS"), "1")) return 2;
+  if (argc != 3 || g_strcmp0(g_getenv("SELECT_FOR_FIGMA_PRIVATE_BUS"), "1")) return 2;
   const bool same = !std::strcmp(argv[1], "same");
-  auto* app = g_application_new("io.github.doromiert.FigmaGtk.Diagnostic", G_APPLICATION_IS_SERVICE);
+  auto* app = g_application_new("io.github.doromiert.SelectForFigma.Diagnostic", G_APPLICATION_IS_SERVICE);
   if (same) {
     auto* action = g_simple_action_new_stateful("build-id", nullptr, g_variant_new_string(APP_BUILD_ID));
     g_action_map_add_action(G_ACTION_MAP(app), G_ACTION(action));

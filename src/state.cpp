@@ -1,6 +1,7 @@
 #include "state.hpp"
 #include "policy.hpp"
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <json-glib/json-glib.h>
 #include <algorithm>
 #include <set>
@@ -47,8 +48,14 @@ void read_tabs(JsonObject* root, const char* key, std::vector<SavedTab>& tabs) {
 }
 }
 
+bool State::migrate_legacy_directory(const std::string& data_home) {
+  const auto legacy = data_home + "/figma-gtk", destination = data_home + "/select-for-figma";
+  if ((g_file_test(destination.c_str(), G_FILE_TEST_EXISTS) || g_file_test(destination.c_str(), G_FILE_TEST_IS_SYMLINK)) || !g_file_test(legacy.c_str(), G_FILE_TEST_IS_DIR)) return true;
+  return g_rename(legacy.c_str(), destination.c_str()) == 0;
+}
+
 State::State(std::string directory) {
-  directory_ = directory.empty() ? std::string(g_get_user_data_dir()) + "/figma-gtk" : std::move(directory);
+  directory_ = directory.empty() ? std::string(g_get_user_data_dir()) + "/select-for-figma" : std::move(directory);
   const char* downloads = g_get_user_special_dir(G_USER_DIRECTORY_DOWNLOAD);
   download_folder = downloads ? downloads : g_get_home_dir();
   load();

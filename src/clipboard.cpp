@@ -63,7 +63,7 @@ void finished(const SharedPaste& paste) {
       document.execCommand('insertText', false, text);
     }
   })())JS";
-  paste->frame->ExecuteJavaScript(script, "figma-gtk://clipboard", 1);
+  paste->frame->ExecuteJavaScript(script, "select-for-figma://clipboard", 1);
   g_free(encoded); g_object_unref(generator); json_node_free(node);
 }
 struct Read {
@@ -146,11 +146,11 @@ class Renderer final : public CefRenderProcessHandler {
 public:
   void OnContextCreated(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,CefRefPtr<CefV8Context> context) override {
     Zane::bind_renderer(frame, context);
-    auto* bytes = g_resources_lookup_data("/io/github/doromiert/FigmaGtk/clipboard/bridge.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr);
+    auto* bytes = g_resources_lookup_data("/io/github/doromiert/SelectForFigma/clipboard/bridge.js",G_RESOURCE_LOOKUP_FLAGS_NONE,nullptr);
     if (!bytes) return;
     context->GetGlobal()->SetValue("__selectClipboardWrite",CefV8Value::CreateFunction("__selectClipboardWrite",new WriteHandler(frame)),static_cast<cef_v8_propertyattribute_t>(V8_PROPERTY_ATTRIBUTE_READONLY|V8_PROPERTY_ATTRIBUTE_DONTENUM));
     gsize size; const auto* data = static_cast<const char*>(g_bytes_get_data(bytes,&size)); CefRefPtr<CefV8Value> result; CefRefPtr<CefV8Exception> exception;
-    context->Eval(std::string(data,size),"figma-gtk://clipboard",1,result,exception); g_bytes_unref(bytes);
+    context->Eval(std::string(data,size),"select-for-figma://clipboard",1,result,exception); g_bytes_unref(bytes);
   }
   bool OnProcessMessageReceived(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,CefProcessId source,CefRefPtr<CefProcessMessage> message) override {
     if (source != PID_BROWSER || message->GetName() != result_message) return false;
@@ -211,7 +211,7 @@ bool Clipboard::receive(Browser& browser,CefRefPtr<CefFrame> frame,CefProcessId 
     ok = gdk_clipboard_set_content(gtk_widget_get_clipboard(browser.widget()),provider); g_object_unref(provider);
   } else ok = false;
   for (auto* provider : providers) g_object_unref(provider);
-  if (browser.owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_COPY")) g_print("Clipboard bridge diagnostic: request=%d success=%s bytes=%zu\n",id,ok ? "yes" : "no",total);
+  if (browser.owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_COPY")) g_print("Clipboard bridge diagnostic: request=%d success=%s bytes=%zu\n",id,ok ? "yes" : "no",total);
   auto result = CefProcessMessage::Create(result_message); auto args = result->GetArgumentList(); args->SetString(0,generation); args->SetInt(1,id); args->SetBool(2,ok);
   frame->SendProcessMessage(PID_RENDERER,result); g_object_unref(parser); return true;
 }
@@ -259,7 +259,7 @@ struct CopyProbe : std::enable_shared_from_this<CopyProbe> {
             g_print("Copied image diagnostic: %s\n",ok ? "PASS" : "FAIL");
             if (self->valid() && ok) {
               g_object_set_data(G_OBJECT(self->browser->widget()),"copy-check-pass",GINT_TO_POINTER(1));
-              self->browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("document.title=document.querySelector('#copy-input').value==='keepCUTtail'.replace('CUT','')?'WebGL + Copy OK':'Copy cut FAILED';","figma-gtk://diagnostic",1);
+              self->browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("document.title=document.querySelector('#copy-input').value==='keepCUTtail'.replace('CUT','')?'WebGL + Copy OK':'Copy cut FAILED';","select-for-figma://diagnostic",1);
             } else self->fail();
           },new std::shared_ptr<CopyProbe>(self));
         } else self->next();
@@ -270,7 +270,7 @@ struct CopyProbe : std::enable_shared_from_this<CopyProbe> {
   void next() {
     if (!valid()) return;
     g_print("Starting copy stage %d\n",stage);
-    browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("window.copyStage("+std::to_string(stage)+")","figma-gtk://diagnostic",1);
+    browser->cef_browser()->GetMainFrame()->ExecuteJavaScript("window.copyStage("+std::to_string(stage)+")","select-for-figma://diagnostic",1);
     g_timeout_add_full(G_PRIORITY_DEFAULT,120,act,new std::shared_ptr<CopyProbe>(shared_from_this()),+[](gpointer p){delete static_cast<std::shared_ptr<CopyProbe>*>(p);});
   }
 };

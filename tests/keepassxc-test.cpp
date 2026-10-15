@@ -52,7 +52,7 @@ struct Mock {
   bool tamper;
   std::thread thread;
   explicit Mock(bool tampered = false) : tamper(tampered) {
-    char* dir = g_dir_make_tmp("figma-gtk-kpxc-XXXXXX", nullptr); directory = dir; g_free(dir); path = directory + "/socket";
+    char* dir = g_dir_make_tmp("select-for-figma-kpxc-XXXXXX", nullptr); directory = dir; g_free(dir); path = directory + "/socket";
     listener = socket(AF_UNIX, SOCK_STREAM, 0); sockaddr_un address{}; address.sun_family = AF_UNIX; std::strcpy(address.sun_path, path.c_str());
     if (bind(listener, reinterpret_cast<sockaddr*>(&address), sizeof address) || listen(listener, 1)) throw std::runtime_error("Could not listen");
     thread = std::thread([this] { serve(); });

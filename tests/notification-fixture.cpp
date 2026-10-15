@@ -3,7 +3,7 @@
 
 // Only run on check-ui.sh's private D-Bus session. It never displays a banner.
 int main(int argc, char** argv) {
-  if (argc != 2 || !g_getenv("FIGMA_GTK_PRIVATE_BUS")) return 1;
+  if (argc != 2 || !g_getenv("SELECT_FOR_FIGMA_PRIVATE_BUS")) return 1;
   const char* xml = R"XML(<node><interface name="org.freedesktop.Notifications">
     <method name="GetCapabilities"><arg type="as" direction="out"/></method>
     <method name="GetServerInformation"><arg type="s" direction="out"/><arg type="s" direction="out"/><arg type="s" direction="out"/><arg type="s" direction="out"/></method>

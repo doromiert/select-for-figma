@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(FigmaGtk VERSION 1.0.1 LANGUAGES C CXX)
+project(SelectForFigma VERSION 1.0.2 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
@@ -39,41 +39,41 @@ set(USE_SANDBOX OFF CACHE BOOL "CEF static sandbox library (not used on Linux)")
 find_package(CEF REQUIRED)
 add_subdirectory("${CEF_LIBCEF_DLL_WRAPPER_PATH}" libcef_dll_wrapper)
 
-add_executable(figma-gtk
+add_executable(select-for-figma
   "${CMAKE_CURRENT_BINARY_DIR}/icons.c"
   src/main.cpp src/application.cpp src/workspace-tabs.cpp src/browser.cpp src/zane.cpp src/zane-models.cpp src/cursor.cpp src/clipboard.cpp src/keepassxc.cpp src/policy.cpp src/state.cpp src/fonts.cpp
 )
-target_include_directories(figma-gtk SYSTEM PRIVATE "${CEF_ROOT}")
-target_include_directories(figma-gtk PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}")
-target_link_libraries(figma-gtk PRIVATE
+target_include_directories(select-for-figma SYSTEM PRIVATE "${CEF_ROOT}")
+target_include_directories(select-for-figma PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(select-for-figma PRIVATE
   libcef_dll_wrapper "${CEF_ROOT}/Release/libcef.so" PkgConfig::GTK PkgConfig::SUPPORT
 )
-target_compile_definitions(figma-gtk PRIVATE
+target_compile_definitions(select-for-figma PRIVATE
   CEF_RESOURCE_DIR="${CEF_ROOT}/Resources"
   CEF_BINARY_DIR="${CEF_ROOT}/Release"
   APP_VERSION="${PROJECT_VERSION}"
 )
-target_compile_options(figma-gtk PRIVATE -Wall -Wextra -Wno-unused-parameter)
-set_target_properties(figma-gtk PROPERTIES OUTPUT_NAME select-for-figma BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR}" INSTALL_RPATH "$ORIGIN")
+target_compile_options(select-for-figma PRIVATE -Wall -Wextra -Wno-unused-parameter)
+set_target_properties(select-for-figma PROPERTIES BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR}" INSTALL_RPATH "$ORIGIN")
 file(GLOB CEF_RUNTIME_FILES "${CEF_ROOT}/Release/*" "${CEF_ROOT}/Resources/*")
 foreach(runtime_file IN LISTS CEF_RUNTIME_FILES)
   get_filename_component(runtime_name "${runtime_file}" NAME)
   file(CREATE_LINK "${runtime_file}" "${CMAKE_CURRENT_BINARY_DIR}/${runtime_name}" SYMBOLIC)
 endforeach()
 
-install(TARGETS figma-gtk RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}/figma-gtk)
+install(TARGETS select-for-figma RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}/select-for-figma)
 file(RELATIVE_PATH APP_LIBDIR_FROM_BINDIR "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_FULL_LIBDIR}")
-configure_file(data/figma-gtk.in "${CMAKE_CURRENT_BINARY_DIR}/figma-gtk-launcher" @ONLY)
-install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/figma-gtk-launcher" DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME select-for-figma)
-install(DIRECTORY "${CEF_ROOT}/Resources/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/figma-gtk)
-install(DIRECTORY "${CEF_ROOT}/Release/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/figma-gtk
+configure_file(data/select-for-figma.in "${CMAKE_CURRENT_BINARY_DIR}/select-for-figma-launcher" @ONLY)
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/select-for-figma-launcher" DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME select-for-figma)
+install(DIRECTORY "${CEF_ROOT}/Resources/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/select-for-figma)
+install(DIRECTORY "${CEF_ROOT}/Release/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/select-for-figma
   FILES_MATCHING PATTERN "*.so*" PATTERN "*.bin" PATTERN "*.json" PATTERN "chrome-sandbox")
-install(FILES data/io.github.doromiert.FigmaGtk.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES data/io.github.doromiert.FigmaGtk.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
-install(FILES data/io.github.doromiert.FigmaGtk.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
-install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/figma-gtk)
-install(FILES "${CEF_ROOT}/LICENSE.txt" DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/figma-gtk RENAME CEF_LICENSE.txt)
-install(FILES "${CEF_ROOT}/CREDITS.html" DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/figma-gtk)
+install(FILES data/io.github.doromiert.SelectForFigma.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES data/io.github.doromiert.SelectForFigma.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+install(FILES data/io.github.doromiert.SelectForFigma.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/select-for-figma)
+install(FILES "${CEF_ROOT}/LICENSE.txt" DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/select-for-figma RENAME CEF_LICENSE.txt)
+install(FILES "${CEF_ROOT}/CREDITS.html" DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/select-for-figma)
 
 if(BUILD_TESTING)
   find_program(NODE_EXECUTABLE node REQUIRED)

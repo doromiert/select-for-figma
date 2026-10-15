@@ -25,7 +25,7 @@ def main():
         raise SystemExit("Another SDK is already present. Choose an empty destination.")
     if destination.exists() and any(destination.iterdir()):
         raise SystemExit("Destination must be empty.")
-    with tempfile.TemporaryDirectory(prefix="figma-gtk-cef-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="select-for-figma-cef-") as temporary:
         archive = pathlib.Path(temporary) / NAME
         print("Downloading stable CEF (approximately 300 MB)…", flush=True)
         digest = hashlib.sha256()

@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/io/github/doromiert/FigmaGtk/icons/scalable/actions">
+  <gresource prefix="/io/github/doromiert/SelectForFigma/icons/scalable/actions">
     <file alias="external-link-symbolic.svg">icons/external-link-symbolic.svg</file>
   </gresource>
-  <gresource prefix="/io/github/doromiert/FigmaGtk/assistant">
+  <gresource prefix="/io/github/doromiert/SelectForFigma/assistant">
     <file alias="bridge.js">zane.js</file>
     <file alias="native-cursor.js">zane-native.js</file>
   </gresource>
-  <gresource prefix="/io/github/doromiert/FigmaGtk/clipboard">
+  <gresource prefix="/io/github/doromiert/SelectForFigma/clipboard">
     <file alias="bridge.js">clipboard.js</file>
   </gresource>
-  <gresource prefix="/io/github/doromiert/FigmaGtk/theme">
+  <gresource prefix="/io/github/doromiert/SelectForFigma/theme">
     <file>adwaita.css</file>
   </gresource>
 </gresources>

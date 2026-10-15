@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.doromiert.FigmaGtk</id>
+  <id>io.github.doromiert.SelectForFigma</id>
   <name>Select for Figma</name>
   <summary>A Figma workspace for GNOME</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
-  <launchable type="desktop-id">io.github.doromiert.FigmaGtk.desktop</launchable>
+  <launchable type="desktop-id">io.github.doromiert.SelectForFigma.desktop</launchable>
   <description>
     <p>Work with Figma in a native GNOME window. Open documents in tabs, browse them in the tab overview, and use installed fonts.</p>
     <p>Select for Figma uses Chromium to display Figma and GTK 4 with libadwaita for its desktop interface. Inspired by ReSketch.</p>
   </description>
   <releases>
+    <release version="1.0.2" date="2026-10-15">
+      <description>
+        <p>Use the Select for Figma name consistently for the application ID, resources, package paths, and development tools, while migrating existing saved data and KeePassXC connections.</p>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-10-15">
       <description>
         <p>Restore the select-for-figma command used by desktop launchers and scripts.</p>

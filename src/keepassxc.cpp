@@ -11,8 +11,15 @@
 #include <unistd.h>
 
 namespace {
-constexpr const char* app_id = "io.github.doromiert.FigmaGtk";
+constexpr const char* app_id = "io.github.doromiert.SelectForFigma";
 const SecretSchema schema = {
+  "io.github.doromiert.SelectForFigma.KeePassXC", SECRET_SCHEMA_NONE,
+  {{"application", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}},
+  0, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
+};
+// Read old associations once so changing the application ID preserves pairing.
+constexpr const char* legacy_app_id = "io.github.doromiert.FigmaGtk";
+const SecretSchema legacy_schema = {
   "io.github.doromiert.FigmaGtk.KeePassXC", SECRET_SCHEMA_NONE,
   {{"application", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}},
   0, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
@@ -210,6 +217,8 @@ void work(GTask* task, gpointer, gpointer task_data, GCancellable*) {
     if (data->operation == Operation::Forget) {
       secret_password_clear_sync(&schema, nullptr, &error, "application", app_id, nullptr);
       if (error) { g_error_free(error); throw std::runtime_error("Could not remove the stored KeePassXC connection"); }
+      secret_password_clear_sync(&legacy_schema, nullptr, &error, "application", legacy_app_id, nullptr);
+      if (error) { g_error_free(error); throw std::runtime_error("Could not remove the earlier KeePassXC connection"); }
     } else if (data->operation == Operation::Pair) {
       KeePassXC::Session session; const auto association = session.associate();
       auto record = object(); json_object_set_string_member(record.get(), "id", association.id.c_str()); json_object_set_string_member(record.get(), "key", association.key.c_str());
@@ -220,9 +229,16 @@ void work(GTask* task, gpointer, gpointer task_data, GCancellable*) {
       result->paired = true;
     } else {
       if (KeePassXC::credential_url(data->url).empty()) throw std::runtime_error("This page is not a supported sign-in page");
-      char* stored = secret_password_lookup_sync(&schema, nullptr, &error, "application", app_id, nullptr);
+      std::unique_ptr<gchar, decltype(&secret_password_free)> stored(secret_password_lookup_sync(&schema, nullptr, &error, "application", app_id, nullptr), secret_password_free);
+      if (!stored && !error) {
+        stored.reset(secret_password_lookup_sync(&legacy_schema, nullptr, &error, "application", legacy_app_id, nullptr));
+        if (stored && !secret_password_store_sync(&schema, SECRET_COLLECTION_DEFAULT, "Select for Figma KeePassXC Connection", stored.get(), nullptr, &error, "application", app_id, nullptr)) {
+          if (error) g_error_free(error);
+          throw std::runtime_error("Could not migrate the KeePassXC connection in the system keyring");
+        }
+      }
       if (!stored) { if (error) g_error_free(error); throw std::runtime_error("Connect to KeePassXC in Preferences first"); }
-      auto record = object(parse(stored)); secret_password_free(stored);
+      auto record = object(parse(stored.get())); stored.reset();
       const KeePassXC::Association association{text(record.get(), "id"), text(record.get(), "key")};
       if (association.id.empty() || association.key.empty()) throw std::runtime_error("Reconnect to KeePassXC in Preferences");
       KeePassXC::Session session; result->logins = session.logins(association, data->url); result->paired = true;

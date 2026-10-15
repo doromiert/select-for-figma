@@ -133,7 +133,7 @@ struct Picker : std::enable_shared_from_this<Picker> {
   }
   void start() {
     char* found = g_find_program_in_path("codex");
-    const char* fake = window.app.render_test ? g_getenv("FIGMA_GTK_TEST_CODEX") : nullptr;
+    const char* fake = window.app.render_test ? g_getenv("SELECT_FOR_FIGMA_TEST_CODEX") : nullptr;
     if (!found && !fake) { fail("Install Codex and run codex login to choose a model"); return; }
     auto* launcher = g_subprocess_launcher_new(static_cast<GSubprocessFlags>(G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE));
     GError* error = nullptr;

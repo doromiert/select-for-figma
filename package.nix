@@ -10,7 +10,7 @@ let
   ];
   buildTools = with pkgs; [ cmake ninja pkg-config sysprof nodejs ];
   cefSdk = pkgs.stdenv.mkDerivation {
-    pname = "figma-gtk-cef-sdk";
+    pname = "select-for-figma-cef-sdk";
     version = "150.0.22";
     src = pkgs.fetchurl {
       url = "https://cef-builds.spotifycdn.com/cef_binary_150.0.22+gc1a097e+chromium-150.0.7871.256_linux64_minimal.tar.bz2";
@@ -35,7 +35,7 @@ let
   };
   package = pkgs.stdenv.mkDerivation {
     pname = "select-for-figma";
-    version = "1.0.1";
+    version = "1.0.2";
     src = lib.cleanSourceWith {
       src = ./.;
       filter = path: type:
@@ -54,9 +54,9 @@ let
     installCheckPhase = ''
       runHook preInstallCheck
       test -x "$out/bin/select-for-figma"
-      test -x "$out/lib/figma-gtk/select-for-figma"
-      test ! -L "$out/lib/figma-gtk/select-for-figma"
-      grep -Fxq 'Exec=select-for-figma %U' "$out/share/applications/io.github.doromiert.FigmaGtk.desktop"
+      test -x "$out/lib/select-for-figma/select-for-figma"
+      test ! -L "$out/lib/select-for-figma/select-for-figma"
+      grep -Fxq 'Exec=select-for-figma %U' "$out/share/applications/io.github.doromiert.SelectForFigma.desktop"
       runHook postInstallCheck
     '';
     passthru = { inherit cefSdk; };

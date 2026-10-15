@@ -4,8 +4,24 @@
 
 int main(int argc, char** argv) {
   g_test_init(&argc, &argv, nullptr);
+  g_test_add_func("/state/profile-migration", +[] {
+    char* data_home = g_dir_make_tmp("select-for-figma-migration-XXXXXX", nullptr);
+    const auto legacy = std::filesystem::path(data_home)/"figma-gtk", destination = std::filesystem::path(data_home)/"select-for-figma";
+    g_assert_true(State::migrate_legacy_directory(data_home));
+    State old(legacy.string()); old.appearance = "dark"; old.keepassxc_paired = true; old.save();
+    std::filesystem::create_directories(legacy/"chromium");
+    g_file_set_contents((legacy/"chromium"/"profile-marker").c_str(), "profile", -1, nullptr);
+    g_assert_true(State::migrate_legacy_directory(data_home));
+    g_assert_false(std::filesystem::exists(legacy)); g_assert_true(std::filesystem::exists(destination/"chromium"/"profile-marker"));
+    State migrated(destination.string()); g_assert_cmpstr(migrated.appearance.c_str(), ==, "dark"); g_assert_true(migrated.keepassxc_paired);
+    old.appearance = "light"; old.save();
+    g_assert_true(State::migrate_legacy_directory(data_home));
+    State preserved(destination.string()); g_assert_cmpstr(preserved.appearance.c_str(), ==, "dark");
+    g_assert_true(std::filesystem::exists(legacy/"state.json"));
+    std::filesystem::remove_all(data_home); g_free(data_home);
+  });
   g_test_add_func("/state/round-trip", +[] {
-    char* directory = g_dir_make_tmp("figma-gtk-state-XXXXXX", nullptr);
+    char* directory = g_dir_make_tmp("select-for-figma-state-XXXXXX", nullptr);
     {
       State state(directory); state.appearance = "dark"; state.zane_chat_model = "example-fast"; state.zane_chat_effort = "low";
       state.zane_work_model = "example-smart"; state.zane_work_effort = "high";
@@ -32,7 +48,7 @@ int main(int argc, char** argv) {
     std::filesystem::remove_all(directory); g_free(directory);
   });
   g_test_add_func("/state/malformed", +[] {
-    char* directory = g_dir_make_tmp("figma-gtk-state-XXXXXX", nullptr);
+    char* directory = g_dir_make_tmp("select-for-figma-state-XXXXXX", nullptr);
     const std::string file = std::string(directory) + "/state.json";
     g_file_set_contents(file.c_str(), "{\"width\":-5,\"appearance\":42,\"tabs\":\"wrong type\",\"recent\":[null,5,{}],\"exports\":[false]}", -1, nullptr);
     State state(directory); g_assert_cmpint(state.width, ==, 360); g_assert_true(state.tabs.empty()); g_assert_true(state.recent.empty());

@@ -2,7 +2,7 @@
 Name=Select for Figma
 Comment=A Figma workspace for GNOME
 Exec=select-for-figma %U
-Icon=io.github.doromiert.FigmaGtk
+Icon=io.github.doromiert.SelectForFigma
 Terminal=false
 Type=Application
 Categories=GNOME;GTK;Graphics;VectorGraphics;

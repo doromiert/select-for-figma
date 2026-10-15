@@ -228,7 +228,7 @@ void Browser::set_visible(bool visible) {
 void Browser::refresh_theme() {
   auto* win = owner();
   if (!browser_ || !win || closing) return;
-  const bool fixture = win->app.render_test && g_getenv("FIGMA_GTK_TEST_EDITOR_THEME") && url.starts_with("data:text/html;base64,");
+  const bool fixture = win->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_EDITOR_THEME") && url.starts_with("data:text/html;base64,");
   if (!Policy::is_figma(url) && !fixture) return;
   const bool enabled = win->app.state.adwaita_editor && !Policy::is_sign_in(url);
   const bool home = !Policy::is_file(url) && !fixture;
@@ -258,7 +258,7 @@ void Browser::refresh_theme() {
     css += "--select-accent-bg:"+accent_bg+";";
     css += "--select-accent-fg:"+color("accent_fg_color", "#ffffff")+";";
     css += "--select-font:'Adwaita Sans',Cantarell,system-ui,sans-serif;}\n";
-    auto* bytes = g_resources_lookup_data("/io/github/doromiert/FigmaGtk/theme/adwaita.css", G_RESOURCE_LOOKUP_FLAGS_NONE, nullptr);
+    auto* bytes = g_resources_lookup_data("/io/github/doromiert/SelectForFigma/theme/adwaita.css", G_RESOURCE_LOOKUP_FLAGS_NONE, nullptr);
     if (!bytes) return;
     gsize size; const auto* data = static_cast<const char*>(g_bytes_get_data(bytes, &size)); css.append(data, size); g_bytes_unref(bytes);
   }
@@ -281,7 +281,7 @@ void Browser::refresh_theme() {
     root.toggleAttribute('data-select-adwaita-home', )JS"+(home ? "true" : "false")+R"JS();
   })())JS";
   g_free(quoted);
-  browser_->GetMainFrame()->ExecuteJavaScript(script, "figma-gtk://theme", 1);
+  browser_->GetMainFrame()->ExecuteJavaScript(script, "select-for-figma://theme", 1);
 }
 GdkPaintable* Browser::thumbnail() {
   // GTK retains the last full-resolution render node, including its GL texture.
@@ -293,7 +293,7 @@ GdkPaintable* Browser::thumbnail() {
 void Browser::set_permissions() {
   auto* win = owner();
   if (!browser_ || !win) return;
-  const bool fixture = win->app.auth_test && g_getenv("FIGMA_GTK_TEST_NOTIFICATIONS") && url.rfind("http://127.0.0.1:", 0) == 0;
+  const bool fixture = win->app.auth_test && g_getenv("SELECT_FOR_FIGMA_TEST_NOTIFICATIONS") && url.rfind("http://127.0.0.1:", 0) == 0;
   if (!Policy::is_figma(url) && !fixture) return;
   auto context = browser_->GetHost()->GetRequestContext();
   context->SetContentSetting(url, url, CEF_CONTENT_SETTING_TYPE_NOTIFICATIONS,
@@ -397,7 +397,7 @@ void Browser::OnPaint(CefRefPtr<CefBrowser> source, PaintElementType type, const
     account_width_=width;account_height_=height;
   }
   upload(type, buffer, width, height);
-  if (type == PET_VIEW && owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_RENDER_STATE") && gl_ready()) {
+  if (type == PET_VIEW && owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_RENDER_STATE") && gl_ready()) {
     // Simulate state left by another GTK draw. The editor must still repaint
     // every pixel, and restore that state rather than relying on GL defaults.
     glEnable(GL_SCISSOR_TEST); glScissor(0,0,0,0); glEnable(GL_RASTERIZER_DISCARD); glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);
@@ -685,7 +685,7 @@ void Browser::OnLoadEnd(CefRefPtr<CefBrowser> source, CefRefPtr<CefFrame> frame,
   const std::string completed = frame->GetURL();
   refresh_theme();
   if (owner() && owner()->zane_account) {
-    if(owner()->app.render_test&&g_getenv("FIGMA_GTK_TEST_ZANE_USER_MODE")&&completed.starts_with("data:text/html;base64,")) frame->ExecuteJavaScript(R"JS(
+    if(owner()->app.render_test&&g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_USER_MODE")&&completed.starts_with("data:text/html;base64,")) frame->ExecuteJavaScript(R"JS(
       window.fixtureCurrentPage='2:1';window.fixtureState.mirror.appModel.currentPage='2:1';
       window.fixtureConnectionFailures=0;
       window.fixturePageReady=()=>{
@@ -694,10 +694,10 @@ void Browser::OnLoadEnd(CefRefPtr<CefBrowser> source, CefRefPtr<CefFrame> frame,
           throw Error('Offline transient page-load failure');
         }
       };
-    )JS","figma-gtk://diagnostic",1);
+    )JS","select-for-figma://diagnostic",1);
     Zane::refresh_account(*this);
   }
-  else if (Policy::is_file(completed) || (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_ZANE"))) {
+  else if (Policy::is_file(completed) || (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE"))) {
     if (!zane_) zane_ = std::make_unique<Zane>(*this);
     zane_->install(frame);
   } else if (zane_) zane_->stop();
@@ -708,16 +708,16 @@ void Browser::OnLoadEnd(CefRefPtr<CefBrowser> source, CefRefPtr<CefFrame> frame,
      (completed == "about:blank" && auth_has_document_));
   if (is_auth_popup && completed != "about:blank") auth_has_document_ = true;
   if (auth_return) schedule_auth_return(completed);
-  if (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_CURSOR")) {
-    frame->ExecuteJavaScript(R"JS(document.body.style.cursor = 'url("data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><path d="M4 4L4 27L11 21L17 29L22 26L16 18L26 17Z" fill="#3584e4" stroke="white" stroke-width="2"/></svg>') + '") 4 4, auto';)JS", "figma-gtk://diagnostic", 1);
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_CURSOR")) {
+    frame->ExecuteJavaScript(R"JS(document.body.style.cursor = 'url("data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><path d="M4 4L4 27L11 21L17 29L22 26L16 18L26 17Z" fill="#3584e4" stroke="white" stroke-width="2"/></svg>') + '") 4 4, auto';)JS", "select-for-figma://diagnostic", 1);
     g_timeout_add_full(G_PRIORITY_DEFAULT, 300, +[](gpointer p) -> gboolean {
       auto browser = *static_cast<CefRefPtr<Browser>*>(p);
       if (browser->cef_browser()) { CefMouseEvent event; event.x = 20; event.y = 20; browser->cef_browser()->GetHost()->SendMouseMoveEvent(event, false); }
       return G_SOURCE_REMOVE;
     }, new CefRefPtr<Browser>(this), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
   }
-  if (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_CLIPBOARD") && url.rfind("data:text/html;base64,", 0) == 0) {
-    frame->ExecuteJavaScript("const input = document.querySelector('input'); input.focus(); input.addEventListener('input', () => { if (input.value === 'Native clipboard ✓') document.title = 'WebGL + Clipboard OK'; });", "figma-gtk://diagnostic", 1);
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_CLIPBOARD") && url.rfind("data:text/html;base64,", 0) == 0) {
+    frame->ExecuteJavaScript("const input = document.querySelector('input'); input.focus(); input.addEventListener('input', () => { if (input.value === 'Native clipboard ✓') document.title = 'WebGL + Clipboard OK'; });", "select-for-figma://diagnostic", 1);
     gdk_clipboard_set_text(gtk_widget_get_clipboard(widget()), "Native clipboard ✓");
     g_timeout_add(100, +[](gpointer p) -> gboolean {
       auto* browser = static_cast<CefRefPtr<Browser>*>(p); Clipboard::paste(**browser); delete browser; return G_SOURCE_REMOVE;
@@ -757,7 +757,7 @@ bool Browser::OnProcessMessageReceived(CefRefPtr<CefBrowser> source_browser,CefR
 }
 bool Browser::OnConsoleMessage(CefRefPtr<CefBrowser> source_browser, cef_log_severity_t, const CefString& message, const CefString& source, int) {
   if (!owns(source_browser)) return true;
-  if (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_EDITOR_THEME") && message.ToString().starts_with("select-editor-theme:")) {
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_EDITOR_THEME") && message.ToString().starts_with("select-editor-theme:")) {
     const bool passed = message.ToString().find(":FAIL") == std::string::npos;
     g_print("Editor theme diagnostic: %s; %s\n", passed ? "PASS" : "FAIL", message.ToString().c_str());
     if (!passed) owner()->app.diagnostic_failed = true;
@@ -765,36 +765,36 @@ bool Browser::OnConsoleMessage(CefRefPtr<CefBrowser> source_browser, cef_log_sev
     g_object_set_data(G_OBJECT(widget()), "editor-theme-checks", GINT_TO_POINTER(checks+1));
     return true;
   }
-  if(owner()&&owner()->app.render_test&&g_getenv("FIGMA_GTK_TEST_ZANE_ACTIONS")&&source.ToString()=="figma-gtk://diagnostic"&&message.ToString().starts_with("select-zane-canvas-actions:")) {
+  if(owner()&&owner()->app.render_test&&g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACTIONS")&&source.ToString()=="select-for-figma://diagnostic"&&message.ToString().starts_with("select-zane-canvas-actions:")) {
     const bool passed=message.ToString().ends_with(":PASS");
     g_object_set_data(G_OBJECT(widget()),"zane-canvas-actions-ok",GINT_TO_POINTER(passed));
     g_print("Zane trusted canvas input and duplicate pen drawing diagnostic: %s\n",passed?"PASS":"FAIL");
     if(!passed) g_print("Canvas input evidence: %s\n",message.ToString().c_str());
     return true;
   }
-  if (owner() && owner()->app.render_test && source.ToString()=="figma-gtk://diagnostic" && message.ToString().starts_with("select-native-cursor-user-follow:")) {
+  if (owner() && owner()->app.render_test && source.ToString()=="select-for-figma://diagnostic" && message.ToString().starts_with("select-native-cursor-user-follow:")) {
     const bool passed=message.ToString().ends_with(":PASS");
     g_object_set_data(G_OBJECT(widget()),"native-cursor-user-follow-ok",GINT_TO_POINTER(passed));
     g_print("Zane follows user through canvas pan diagnostic: %s\n",passed ? "PASS" : "FAIL"); return true;
   }
-  if (owner() && owner()->app.auth_test && g_getenv("FIGMA_GTK_TEST_ZANE_ACCOUNT") && source.ToString()=="figma-gtk://diagnostic" && message.ToString().starts_with("select-zane-account-isolation:")) {
+  if (owner() && owner()->app.auth_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_ACCOUNT") && source.ToString()=="select-for-figma://diagnostic" && message.ToString().starts_with("select-zane-account-isolation:")) {
     const bool passed=message.ToString().ends_with(":PASS");
     g_object_set_data(G_OBJECT(widget()),"zane-account-isolation-ok",GINT_TO_POINTER(passed));
     g_print("Separate account cookie isolation diagnostic: %s\n",passed ? "PASS" : "FAIL"); return true;
   }
-  if (owner() && owner()->app.render_test && source.ToString()=="figma-gtk://diagnostic" &&
+  if (owner() && owner()->app.render_test && source.ToString()=="select-for-figma://diagnostic" &&
       (message.ToString().starts_with("select-native-cursor-follow:") || message.ToString().starts_with("select-zane-followup:"))) {
     const bool follow=message.ToString().starts_with("select-native-cursor-follow:");
     const bool passed=message.ToString().ends_with(":PASS");
     g_object_set_data(G_OBJECT(widget()),follow ? "native-cursor-follow-ok" : "zane-followup-ok",GINT_TO_POINTER(passed));
     g_print("%s diagnostic: %s\n",follow ? "Offscreen cursor and follow" : "Busy cursor chat and leave",passed ? "PASS" : "FAIL"); return true;
   }
-  if (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_ZANE_CURSOR") && source.ToString() == "figma-gtk://diagnostic" && message.ToString().starts_with("select-native-cursor-pan:")) {
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_ZANE_CURSOR") && source.ToString() == "select-for-figma://diagnostic" && message.ToString().starts_with("select-native-cursor-pan:")) {
     const bool passed = message.ToString() == "select-native-cursor-pan:PASS";
     g_object_set_data(G_OBJECT(widget()),"native-cursor-pan-ok",GINT_TO_POINTER(passed));
     g_print("Native cursor stays anchored during canvas pan diagnostic: %s\n",passed ? "PASS" : "FAIL"); return true;
   }
-  if (owner() && owner()->app.render_test && g_getenv("FIGMA_GTK_TEST_COPY") && source.ToString() == "figma-gtk://clipboard") g_print("Clipboard script diagnostic: %s\n",message.ToString().c_str());
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_COPY") && source.ToString() == "select-for-figma://clipboard") g_print("Clipboard script diagnostic: %s\n",message.ToString().c_str());
   if (owner() && owner()->app.auth_test) g_print("Local fixture: %s\n", message.ToString().c_str());
   return false;
 }
