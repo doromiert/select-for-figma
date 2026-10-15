@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Select for Figma
 Comment=A Figma workspace for GNOME
-Exec=figma-gtk %U
+Exec=select-for-figma %U
 Icon=io.github.doromiert.FigmaGtk
 Terminal=false
 Type=Application

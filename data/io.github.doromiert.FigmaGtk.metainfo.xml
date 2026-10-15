@@ -11,6 +11,11 @@
     <p>Select for Figma uses Chromium to display Figma and GTK 4 with libadwaita for its desktop interface. Inspired by ReSketch.</p>
   </description>
   <releases>
+    <release version="1.0.1" date="2026-10-15">
+      <description>
+        <p>Restore the select-for-figma command used by desktop launchers and scripts.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-10-15">
       <description>
         <p>First stable GTK release, with an Adwaita editor theme and a Ctrl+Tab thumbnail switcher that includes Home and supports tab position or most recently used order.</p>

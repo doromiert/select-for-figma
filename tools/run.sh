@@ -5,4 +5,4 @@ cd "$project_dir"
 # The CEF subprocess must find the same SDK libraries as the primary process.
 app_build_dir="${FIGMA_GTK_BUILD_DIR:-$project_dir/build-flake}"
 export LD_LIBRARY_PATH="$app_build_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$app_build_dir/figma-gtk" "$@"
+exec "$app_build_dir/select-for-figma" "$@"

@@ -10,8 +10,8 @@
       lib = pkgs.lib;
       package = import ./package.nix { inherit pkgs; };
     in {
-      packages.${system} = { default = package; figma-gtk = package; cef-sdk = package.cefSdk; };
-      apps.${system}.default = { type = "app"; program = "${package}/bin/figma-gtk"; meta.description = package.meta.description; };
+      packages.${system} = { default = package; select-for-figma = package; cef-sdk = package.cefSdk; };
+      apps.${system}.default = { type = "app"; program = "${package}/bin/select-for-figma"; meta.description = package.meta.description; };
       devShells.${system}.default = pkgs.mkShell {
         nativeBuildInputs = with pkgs; [ cmake ninja pkg-config sysprof nodejs python3 xorg-server ripgrep ];
         buildInputs = package.buildInputs;

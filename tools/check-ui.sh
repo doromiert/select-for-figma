@@ -15,7 +15,7 @@ XML
   exit
 fi
 # Run inside nix develop. The display and Chromium profile are private.
-app_binary="${1:-$PWD/build-flake/figma-gtk}"
+app_binary="${1:-$PWD/build-flake/select-for-figma}"
 app_command=("$app_binary")
 if [[ "$app_binary" == --flake ]]; then
   # Build once before starting pointer drivers, and keep the source immutable

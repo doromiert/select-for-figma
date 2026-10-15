@@ -26,7 +26,7 @@ To install the application and its desktop launcher:
 nix profile add github:doromiert/select-for-figma
 ```
 
-The package includes `io.github.doromiert.FigmaGtk.desktop`, the application icon, AppStream metadata, and a `figma://` link handler. After installation, launch **Select for Figma** from your desktop's application menu. NixOS configurations can also add the flake's default package to `environment.systemPackages` or Home Manager's `home.packages`.
+The command is `select-for-figma`. The package includes `io.github.doromiert.FigmaGtk.desktop`, the application icon, AppStream metadata, and a `figma://` link handler. After installation, launch **Select for Figma** from your desktop's application menu. NixOS configurations can also add the flake's default package to `environment.systemPackages` or Home Manager's `home.packages`.
 
 After rebuilding, fully close a previous instance before launching the new one. The launcher checks the running instance’s build and reports its process ID if it would otherwise forward to an older background process. Navigation and reload during startup share one Chromium browser per native tab, keeping input, rendered frames and Zane attached to the same page.
 

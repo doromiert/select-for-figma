@@ -34,8 +34,8 @@ let
     };
   };
   package = pkgs.stdenv.mkDerivation {
-    pname = "figma-gtk";
-    version = "1.0.0";
+    pname = "select-for-figma";
+    version = "1.0.1";
     src = lib.cleanSourceWith {
       src = ./.;
       filter = path: type:
@@ -50,11 +50,20 @@ let
       ctest --output-on-failure
       runHook postCheck
     '';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      runHook preInstallCheck
+      test -x "$out/bin/select-for-figma"
+      test -x "$out/lib/figma-gtk/select-for-figma"
+      test ! -L "$out/lib/figma-gtk/select-for-figma"
+      grep -Fxq 'Exec=select-for-figma %U' "$out/share/applications/io.github.doromiert.FigmaGtk.desktop"
+      runHook postInstallCheck
+    '';
     passthru = { inherit cefSdk; };
     meta = {
       description = "A native GNOME workspace for Figma";
       license = lib.licenses.gpl3Only;
-      mainProgram = "figma-gtk";
+      mainProgram = "select-for-figma";
       platforms = [ system ];
     };
   };
