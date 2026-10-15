@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.doromiert.FigmaGtk</id>
+  <name>Select for Figma</name>
+  <summary>A Figma workspace for GNOME</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <launchable type="desktop-id">io.github.doromiert.FigmaGtk.desktop</launchable>
+  <description>
+    <p>Work with Figma in a native GNOME window. Open documents in tabs, browse them in the tab overview, and use installed fonts.</p>
+    <p>Select for Figma uses Chromium to display Figma and GTK 4 with libadwaita for its desktop interface. Inspired by ReSketch.</p>
+  </description>
+  <categories><category>Graphics</category></categories>
+  <content_rating type="oars-1.1"/>
+  <requires><internet>always</internet></requires>
+  <recommends><control>pointing</control><control>keyboard</control></recommends>
+</component>

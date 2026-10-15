@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Select for Figma
+Comment=A Figma workspace for GNOME
+Exec=figma-gtk %U
+Icon=io.github.doromiert.FigmaGtk
+Terminal=false
+Type=Application
+Categories=GNOME;GTK;Graphics;VectorGraphics;
+MimeType=x-scheme-handler/figma;
+StartupNotify=true
+Keywords=Figma;FigJam;Design;Prototype;
