@@ -46,7 +46,7 @@ run_check() {
   local name="$1"; shift
   if [[ -n "${SELECT_FOR_FIGMA_CHECKS:-}" && " $SELECT_FOR_FIGMA_CHECKS " != *" $name "* ]]; then return; fi
   local driver_pids=()
-  if [[ "$name" == zane-keyboard ]]; then python3 tools/drag-fixture.py "$check_dir/$name.png.drag.json" >"$check_dir/$name-driver.log" 2>&1 & driver_pids+=("$!"); fi
+  if [[ "$name" == zane-keyboard || "$name" == keyboard-input ]]; then python3 tools/drag-fixture.py "$check_dir/$name.png.drag.json" >"$check_dir/$name-driver.log" 2>&1 & driver_pids+=("$!"); fi
   if [[ "$name" == overflow-drag || "$name" == interaction-* || "$name" == drag || "$name" == header-drag || "$name" == middle-click || "$name" == group-create || "$name" == group-header-drag || "$name" == group-overview-drag || "$name" == group-member-drag || "$name" == group-drawer-drag || "$name" == group-tab-drag || "$name" == group-join-drag || "$name" == group-extract-drag || "$name" == group-transfer-drag ]]; then python3 tools/drag-fixture.py "$check_dir/$name.png.drag.json" >"$check_dir/$name-driver.log" 2>&1 & driver_pids+=("$!"); fi
   if [[ "$name" == middle-click ]]; then python3 tools/drag-fixture.py "$check_dir/$name.png.overview.drag.json" >"$check_dir/$name-overview-driver.log" 2>&1 & driver_pids+=("$!"); fi
   if [[ "$name" == group-create ]]; then python3 tools/drag-fixture.py "$check_dir/$name.png.menu.drag.json" >"$check_dir/$name-menu-driver.log" 2>&1 & driver_pids+=("$!"); fi
@@ -142,6 +142,7 @@ SELECT_FOR_FIGMA_TEST_RENDER_OVERVIEW=1 SELECT_FOR_FIGMA_TEST_RENDER_GROUPS=1 SE
 SELECT_FOR_FIGMA_TEST_RENDER_OVERVIEW=1 SELECT_FOR_FIGMA_TEST_DRAG=1 run_check drag --render-test
 SELECT_FOR_FIGMA_TEST_RENDER_OVERVIEW=1 SELECT_FOR_FIGMA_TEST_DRAG=1 SELECT_FOR_FIGMA_TEST_HEADER_DRAG=1 run_check header-drag --render-test
 SELECT_FOR_FIGMA_TEST_RENDER_STATE=1 run_check render-state --render-test
+GTK_IM_MODULE=simple SELECT_FOR_FIGMA_TEST_KEYBOARD_INPUT=1 run_check keyboard-input --render-test
 SELECT_FOR_FIGMA_TEST_COPY=1 run_check copy --render-test
 SELECT_FOR_FIGMA_TEST_CLIPBOARD=1 SELECT_FOR_FIGMA_TEST_CURSOR=1 run_check render --render-test
 GDK_SCALE=2 SELECT_FOR_FIGMA_TEST_NARROW=1 SELECT_FOR_FIGMA_TEST_CLIPBOARD=1 SELECT_FOR_FIGMA_TEST_CURSOR=1 run_check render-scale2 --render-test

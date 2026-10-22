@@ -256,6 +256,55 @@ int main(int argc, char** argv) {
         if (!g_file_get_contents("tools/editor-theme-fixture.html", &fixture, &size, nullptr)) return 1;
         html.assign(fixture, size); g_free(fixture);
       }
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_KEYBOARD_INPUT")) html += R"HTML(
+        <textarea id="keyboard-text" style="position:fixed;left:40px;top:100px;width:400px;height:150px">Keep selected text</textarea>
+        <input id="keyboard-after" style="position:fixed;left:40px;top:290px;width:400px">
+        <div id="keyboard-editable" contenteditable="true" style="position:fixed;left:40px;top:400px;width:400px;height:100px"></div>
+        <script>
+          const typing=document.querySelector('#keyboard-text'), editable=document.querySelector('#keyboard-editable'), after=document.querySelector('#keyboard-after');
+          let keyboardStage=0, downs=0, presses=0, ups=0, beforeInputs=0, inputs=0, compositions=0, keyboardFailed=false;
+          const resetCounts=()=>{downs=presses=ups=beforeInputs=inputs=compositions=0;};
+          const prepare=(node,text)=>{
+            if(node.isContentEditable) node.textContent=text; else node.value=text;
+            node.focus();
+            if(node.isContentEditable){const range=document.createRange();range.selectNodeContents(node);getSelection().removeAllRanges();getSelection().addRange(range);}else node.select();
+            resetCounts();
+          };
+          typing.onclick=()=>{if(keyboardStage===0)typing.select();};
+          document.addEventListener('keydown',event=>{downs++;if([0,2,11].includes(keyboardStage)&&event.key==='t')event.preventDefault();});
+          document.addEventListener('keypress',()=>presses++);
+          document.addEventListener('beforeinput',()=>beforeInputs++);
+          document.addEventListener('input',()=>inputs++);
+          document.addEventListener('compositionstart',()=>compositions++);
+          document.addEventListener('keyup',event=>{
+            const keys=['t','a','t','b','C','Enter','Backspace','Tab','Enter','Enter','a','t','d'];
+            if(event.key!==keys[keyboardStage])return;
+            ups++;
+            setTimeout(()=>{
+              const evidence={stage:keyboardStage,text:typing.value,editable:editable.textContent,after:after.value,downs,presses,ups,beforeInputs,inputs,compositions};
+              let ok=false,label='';
+              switch(keyboardStage++){
+                case 0:label='Prevented T preserves selected textarea text';ok=typing.value==='Keep selected text'&&inputs===0&&beforeInputs===0&&downs===1&&ups===1&&presses===0;prepare(typing,'');break;
+                case 1:label='Textarea typing emits one key and insertion sequence';ok=typing.value==='a'&&downs===1&&presses===1&&ups===1&&beforeInputs===1&&inputs===1;prepare(editable,'Keep canvas text');break;
+                case 2:label='Prevented T preserves selected contenteditable text';ok=editable.textContent==='Keep canvas text'&&inputs===0&&beforeInputs===0&&presses===0;prepare(editable,'');break;
+                case 3:label='Contenteditable typing inserts once';ok=editable.textContent==='b'&&presses===1&&beforeInputs===1&&inputs===1;resetCounts();break;
+                case 4:label='Shift produces one uppercase character';ok=editable.textContent==='bC'&&presses===1&&beforeInputs===1&&inputs===1;prepare(typing,'');break;
+                case 5:label='Enter inserts one newline';ok=typing.value==='\n'&&inputs===1;resetCounts();break;
+                case 6:label='Backspace deletes once';ok=typing.value===''&&inputs===1;resetCounts();break;
+                case 7:label='Tab moves focus without inserting text';ok=document.activeElement===after&&typing.value===''&&inputs===0;prepare(after,'');break;
+                case 8:label='GTK Unicode composition commits once';ok=after.value==='é'&&compositions>0;prepare(after,'');break;
+                case 9:label='GTK supplementary Unicode composition commits once';ok=after.value==='😀'&&compositions>0;resetCounts();break;
+                case 10:label='Ctrl A selects text without insertion';ok=after.value==='😀'&&after.selectionStart===0&&after.selectionEnd===2&&inputs===0;resetCounts();break;
+                case 11:label='Prevented T still works after composition';ok=after.value==='😀'&&inputs===0&&presses===0;resetCounts();break;
+                case 12:label='Typing after composition replaces selection once';ok=after.value==='d'&&presses===1&&beforeInputs===1&&inputs===1;break;
+              }
+              keyboardFailed ||= !ok;
+              console.info('select-input-check:'+label+':'+(ok?'PASS':'FAIL'));
+              if(!ok)console.info('Keyboard evidence: '+JSON.stringify(evidence));
+              if(keyboardStage===13)document.title=keyboardFailed?'Keyboard FAILED':'WebGL + Keyboard OK';
+            },30);
+          });
+        </script>)HTML";
       if (g_getenv("SELECT_FOR_FIGMA_TEST_COPY")) html += R"HTML(<span id="copy-selection">Selected page text ✓</span><input id="copy-input"><button style="position:fixed;left:600px;top:300px;width:120px;height:60px" onclick="const el=document.querySelector('#copy-input');el.focus();el.select();document.execCommand('copy')">Copy fixture</button><script>
         window.copyMode='';
         document.addEventListener('copy',e=>{if(copyMode==='rich'){e.clipboardData.setData('text/plain','Figma objects ✓');e.clipboardData.setData('text/html','<b>Figma objects ✓</b>');e.clipboardData.setData('application/x-figma','fixture-objects');e.preventDefault();e.stopImmediatePropagation();}});
@@ -372,6 +421,17 @@ int main(int argc, char** argv) {
         }, new SwitchTest{window, first, second, third}, +[](gpointer p) { delete static_cast<SwitchTest*>(p); });
         return G_SOURCE_REMOVE;
       }, new CefRefPtr<Browser>(first), +[](gpointer p) { delete static_cast<CefRefPtr<Browser>*>(p); });
+      if (g_getenv("SELECT_FOR_FIGMA_TEST_KEYBOARD_INPUT")) g_timeout_add_full(G_PRIORITY_DEFAULT,1500,+[](gpointer p)->gboolean {
+        auto browser=*static_cast<CefRefPtr<Browser>*>(p);auto* window=browser->owner();if(!window)return G_SOURCE_REMOVE;
+        graphene_rect_t bounds;
+        if(!gtk_widget_compute_bounds(browser->surface(),GTK_WIDGET(window->window),&bounds)){window->app.diagnostic_failed=true;return G_SOURCE_REMOVE;}
+        double sx,sy;gtk_native_get_surface_transform(GTK_NATIVE(window->window),&sx,&sy);
+        G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+        char* request=g_strdup_printf("{\"window\":%lu,\"click\":true,\"button\":1,\"start\":[%d,%d],\"end\":[0,0],\"shortcuts\":[[\"t\"],[\"a\"],[\"t\"],[\"b\"],[\"Shift_L\",\"c\"],[\"Return\"],[\"BackSpace\"],[\"Tab\"],[\"Control_L\",\"Shift_L\",\"u\"],[\"e\"],[\"9\"],[\"Return\"],[\"Control_L\",\"Shift_L\",\"u\"],[\"1\"],[\"f\"],[\"6\"],[\"0\"],[\"0\"],[\"Return\"],[\"Control_L\",\"a\"],[\"t\"],[\"d\"]]}",gdk_x11_surface_get_xid(gtk_native_get_surface(GTK_NATIVE(window->window))),static_cast<int>(bounds.origin.x+100+sx),static_cast<int>(bounds.origin.y+150+sy));
+        G_GNUC_END_IGNORE_DEPRECATIONS
+        g_file_set_contents((window->app.screenshot+".drag.json").c_str(),request,-1,nullptr);g_free(request);
+        return G_SOURCE_REMOVE;
+      },new CefRefPtr<Browser>(first),+[](gpointer p){delete static_cast<CefRefPtr<Browser>*>(p);});
       if (g_getenv("SELECT_FOR_FIGMA_TEST_EDITOR_THEME")) g_timeout_add_full(G_PRIORITY_DEFAULT, 2000, +[](gpointer p) -> gboolean {
         struct ThemeTest { CefRefPtr<Browser> browser; int step = 0; };
         g_timeout_add_full(G_PRIORITY_DEFAULT, 500, +[](gpointer p) -> gboolean {
@@ -729,6 +789,11 @@ int main(int argc, char** argv) {
         } else if (app->render_test) {
           auto browser = window->current();
           g_print("Render diagnostic: title=%s; GPU shared frames=%s\n", browser ? browser->name.c_str() : "missing", browser && browser->gpu_frames ? "yes" : "no");
+          if (g_getenv("SELECT_FOR_FIGMA_TEST_KEYBOARD_INPUT")) {
+            const int count=browser?GPOINTER_TO_INT(g_object_get_data(G_OBJECT(browser->widget()),"input-checks")):0;
+            g_print("Editor input checks completed diagnostic: %s; %d/13\n",count==13?"PASS":"FAIL",count);
+            if(count!=13 || browser->name!="WebGL + Keyboard OK")app->diagnostic_failed=true;
+          }
           if (g_getenv("SELECT_FOR_FIGMA_TEST_TAB_SWITCHER")) {
             const bool complete = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(window->window), "tab-switcher-tested"));
             g_print("Tab switcher completed diagnostic: %s\n", complete ? "PASS" : "FAIL"); if (!complete) app->diagnostic_failed = true;

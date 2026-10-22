@@ -117,6 +117,8 @@ private:
   GtkWidget* area_;
   GtkWidget* error_page_;
   GtkIMContext* im_;
+  CefKeyEvent* text_key_ = nullptr;
+  bool ime_composing_ = false;
   bool software_;
   bool creating_ = false;
   int browser_id_ = 0;
@@ -145,7 +147,7 @@ private:
   void upload(PaintElementType type, const void* pixels, int width, int height);
   void show_error(const std::string& title, const std::string& description);
   CefMouseEvent mouse(GdkModifierType modifiers = static_cast<GdkModifierType>(0));
-  void send_key(guint keyval, guint keycode, GdkModifierType state, bool release);
+  CefKeyEvent send_key(guint keyval, guint keycode, GdkModifierType state, bool release);
   bool route(const std::string& target, bool user_gesture, bool new_tab);
   void schedule_auth_return(const std::string& completed);
   IMPLEMENT_REFCOUNTING(Browser);

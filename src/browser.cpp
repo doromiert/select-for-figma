@@ -479,7 +479,23 @@ void Browser::setup_input() {
   im_ = gtk_im_multicontext_new(); g_object_set_data(G_OBJECT(area_),"browser-im",im_); gtk_im_context_set_client_widget(im_, area_);
   g_signal_connect(im_, "commit", G_CALLBACK(+[](GtkIMContext*, const char* text, Browser* self) {
     if (self->zane_) self->zane_->commit(text);
-    if (self->browser_) self->browser_->GetHost()->ImeCommitText(text, CefRange(UINT32_MAX, UINT32_MAX), 0);
+    if (!self->browser_) return;
+    // Ordinary characters must follow keydown so preventDefault can suppress
+    // their insertion. A direct IME commit bypasses that browser decision.
+    if (self->text_key_) {
+      const auto value = CefString(text).ToString16();
+      for (const auto character : value) {
+        auto event = *self->text_key_; event.type = KEYEVENT_CHAR;
+        event.windows_key_code = event.character = event.unmodified_character = character;
+        self->browser_->GetHost()->SendKeyEvent(event);
+      }
+    } else self->browser_->GetHost()->ImeCommitText(text, CefRange(UINT32_MAX, UINT32_MAX), 0);
+  }), this);
+  g_signal_connect(im_, "preedit-start", G_CALLBACK(+[](GtkIMContext*, Browser* self) {
+    self->ime_composing_ = true; self->text_key_ = nullptr;
+  }), this);
+  g_signal_connect(im_, "preedit-end", G_CALLBACK(+[](GtkIMContext*, Browser* self) {
+    self->ime_composing_ = false;
   }), this);
   g_signal_connect(im_, "preedit-changed", G_CALLBACK(+[](GtkIMContext* im, Browser* self) {
     if (!self->browser_) return;
@@ -549,9 +565,16 @@ void Browser::setup_input() {
       Clipboard::paste(*self, (state & GDK_CONTROL_MASK) && (state & GDK_SHIFT_MASK)); return true;
     }
     if (self->zane_) self->zane_->key(key,state);
-    self->send_key(key, code, state, false);
+    auto text_key = self->send_key(key, code, state, false);
+    self->text_key_ = self->ime_composing_ ? nullptr : &text_key;
     GdkEvent* event = gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(c));
-    if (event) gtk_im_context_filter_keypress(self->im_, event);
+    const bool handled = event && gtk_im_context_filter_keypress(self->im_, event);
+    if (!handled && self->browser_ && (key == GDK_KEY_Return || key == GDK_KEY_KP_Enter)) {
+      text_key.type = KEYEVENT_CHAR;
+      text_key.windows_key_code = text_key.character = text_key.unmodified_character = '\r';
+      self->browser_->GetHost()->SendKeyEvent(text_key);
+    }
+    self->text_key_ = nullptr;
     return true;
   }), this);
   g_signal_connect(keys, "key-released", G_CALLBACK(+[](GtkEventControllerKey* c, guint key, guint code, GdkModifierType state, Browser* self) {
@@ -564,13 +587,23 @@ void Browser::setup_input() {
 CefMouseEvent Browser::mouse(GdkModifierType state) {
   CefMouseEvent e; e.x = std::lround(mouse_x_); e.y = std::lround(mouse_y_); e.modifiers = modifiers(state); return e;
 }
-void Browser::send_key(guint keyval, guint keycode, GdkModifierType state, bool release) {
-  if (!browser_) return;
+CefKeyEvent Browser::send_key(guint keyval, guint keycode, GdkModifierType state, bool release) {
   CefKeyEvent e; e.type = release ? KEYEVENT_KEYUP : KEYEVENT_RAWKEYDOWN;
   e.windows_key_code = windows_key(keyval); e.native_key_code = keycode;
-  e.modifiers = modifiers(state); e.is_system_key = (state & GDK_ALT_MASK) != 0;
+  e.modifiers = modifiers(state);
+  uint32_t flag = 0;
+  switch (keyval) {
+    case GDK_KEY_Shift_L: case GDK_KEY_Shift_R: flag = EVENTFLAG_SHIFT_DOWN; break;
+    case GDK_KEY_Control_L: case GDK_KEY_Control_R: flag = EVENTFLAG_CONTROL_DOWN; break;
+    case GDK_KEY_Alt_L: case GDK_KEY_Alt_R: flag = EVENTFLAG_ALT_DOWN; break;
+    case GDK_KEY_Super_L: case GDK_KEY_Super_R: flag = EVENTFLAG_COMMAND_DOWN; break;
+  }
+  // GDK reports the state before this key changes; Chromium expects the new state.
+  if (release) e.modifiers &= ~flag; else e.modifiers |= flag;
+  e.is_system_key = (e.modifiers & EVENTFLAG_ALT_DOWN) != 0;
   e.character = gdk_keyval_to_unicode(keyval); e.unmodified_character = gdk_keyval_to_unicode(gdk_keyval_to_lower(keyval));
-  browser_->GetHost()->SendKeyEvent(e);
+  if (browser_) browser_->GetHost()->SendKeyEvent(e);
+  return e;
 }
 bool Browser::canvas_input(const std::string& operation,double x,double y,double dx,double dy,const std::string& shortcut) {
   if (!browser_ || closing || loading) return false;
@@ -798,6 +831,14 @@ bool Browser::OnConsoleMessage(CefRefPtr<CefBrowser> source_browser, cef_log_sev
     g_print("Native cursor stays anchored during canvas pan diagnostic: %s\n",passed ? "PASS" : "FAIL"); return true;
   }
   if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_COPY") && source.ToString() == "select-for-figma://clipboard") g_print("Clipboard script diagnostic: %s\n",message.ToString().c_str());
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_KEYBOARD_INPUT") && message.ToString().starts_with("select-input-check:")) {
+    const auto check=message.ToString().substr(19);const bool passed=check.ends_with(":PASS");
+    g_print("%s diagnostic: %s\n",check.substr(0,check.size()-5).c_str(),passed?"PASS":"FAIL");
+    if(!passed)owner()->app.diagnostic_failed=true;
+    const int count=GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget()),"input-checks"));
+    g_object_set_data(G_OBJECT(widget()),"input-checks",GINT_TO_POINTER(count+1));return true;
+  }
+  if (owner() && owner()->app.render_test && g_getenv("SELECT_FOR_FIGMA_TEST_KEYBOARD_INPUT")) g_print("Keyboard fixture: %s\n",message.ToString().c_str());
   if (owner() && owner()->app.auth_test) g_print("Local fixture: %s\n", message.ToString().c_str());
   return false;
 }

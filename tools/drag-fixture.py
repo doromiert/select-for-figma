@@ -18,8 +18,9 @@ for _ in range(600):
 else:
     raise SystemExit("No drag request from the diagnostic")
 data = json.loads(request.read_text())
-x11 = c.CDLL("libX11.so.6")
+# Load the configured library first so its Nix dependencies are available by name.
 xt = c.CDLL(os.environ["SELECT_FOR_FIGMA_XTEST_LIBRARY"])
+x11 = c.CDLL("libX11.so.6")
 x11.XOpenDisplay.restype = c.c_void_p
 x11.XOpenDisplay.argtypes = [c.c_char_p]
 x11.XDefaultRootWindow.restype = c.c_ulong
@@ -54,6 +55,21 @@ else:
         xt.XTestFakeMotionEvent(display, -1, *point, 0)
         x11.XFlush(display)
         time.sleep(0.04)
+if data.get("shortcuts"):
+    x11.XStringToKeysym.argtypes = [c.c_char_p]
+    x11.XStringToKeysym.restype = c.c_ulong
+    x11.XKeysymToKeycode.argtypes = [c.c_void_p, c.c_ulong]
+    x11.XKeysymToKeycode.restype = c.c_uint
+    xt.XTestFakeKeyEvent.argtypes = [c.c_void_p, c.c_uint, c.c_int, c.c_ulong]
+    for shortcut in data["shortcuts"]:
+        codes = [x11.XKeysymToKeycode(display, x11.XStringToKeysym(key.encode())) for key in shortcut]
+        assert all(codes)
+        for code in codes:
+            xt.XTestFakeKeyEvent(display, code, 1, 0)
+        for code in reversed(codes):
+            xt.XTestFakeKeyEvent(display, code, 0, 0)
+        x11.XFlush(display)
+        time.sleep(0.15)
 if data.get("keys"):
     # Exercise GTK key events and its input method, rather than emitting the
     # application's commit signal directly. This is restricted to the private bus.
