@@ -542,7 +542,10 @@ void Browser::setup_input() {
     if ((state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK | GDK_ALT_MASK | GDK_SUPER_MASK)) == GDK_CONTROL_MASK && (key == GDK_KEY_Page_Down || key == GDK_KEY_Page_Up) && self->owner()) {
       g_action_group_activate_action(G_ACTION_GROUP(self->owner()->window), key == GDK_KEY_Page_Down ? "next-tab" : "previous-tab", nullptr); return true;
     }
-    if (((state & GDK_CONTROL_MASK) && gdk_keyval_to_lower(key) == GDK_KEY_v) || ((state & GDK_SHIFT_MASK) && key == GDK_KEY_Insert)) {
+    // Leave modified Figma commands (for example Ctrl+Alt+V, paste
+    // properties) in the editor instead of treating them as native paste.
+    const auto modifiers = state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK | GDK_ALT_MASK | GDK_SUPER_MASK);
+    if (((modifiers == GDK_CONTROL_MASK || modifiers == (GDK_CONTROL_MASK | GDK_SHIFT_MASK)) && gdk_keyval_to_lower(key) == GDK_KEY_v) || (modifiers == GDK_SHIFT_MASK && key == GDK_KEY_Insert)) {
       Clipboard::paste(*self, (state & GDK_CONTROL_MASK) && (state & GDK_SHIFT_MASK)); return true;
     }
     if (self->zane_) self->zane_->key(key,state);

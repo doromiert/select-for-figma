@@ -116,11 +116,11 @@ Application::Application() {
     {"win.new-tab", "<Primary>t"},
     {"win.open-link", "<Primary>o"}, {"win.home", "<Alt>Home"}, {"win.close-tab", "<Primary>w"},
     {"win.close-window", "<Primary><Shift>w"}, {"win.new-window", "<Primary>n"},
-    {"win.reload", "<Primary>r"}, {"win.hard-reload", "<Primary><Shift>r"},
-    {"win.back", "<Alt>Left"}, {"win.forward", "<Alt>Right"}, {"win.overview", "<Primary><Shift>o"},
-    {"win.copy-link", "<Primary><Shift>c"}, {"win.preferences", "<Primary>comma"},
-    {"win.shortcuts", "<Primary>question"}, {"win.fullscreen", "F11"},
-    {"win.downloads", "<Primary>j"}, {"win.next-tab", "<Primary>Page_Down"}, {"win.previous-tab", "<Primary>Page_Up"},
+    {"win.reload", "F5"}, {"win.hard-reload", "<Primary>F5"},
+    {"win.back", "<Alt>Left"}, {"win.forward", "<Alt>Right"}, {"win.overview", "F8"},
+    {"win.copy-link", "<Primary><Shift>F8"}, {"win.preferences", "<Primary>comma"},
+    {"win.shortcuts", "F1"}, {"win.fullscreen", "F11"},
+    {"win.downloads", "F9"}, {"win.next-tab", "<Primary>Page_Down"}, {"win.previous-tab", "<Primary>Page_Up"},
   };
   for (const auto& s : shortcuts) { const char* accelerators[] = {s.shortcut, nullptr}; gtk_application_set_accels_for_action(GTK_APPLICATION(gtk_app), s.action, accelerators); }
 }
